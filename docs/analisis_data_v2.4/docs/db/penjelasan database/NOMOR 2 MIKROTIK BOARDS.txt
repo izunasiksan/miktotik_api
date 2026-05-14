@@ -1,0 +1,292 @@
+NOMOR 2 MIKROTIK BOARDS
+Core Asset (Router Management)
+
+Tabel mikrotik_boards menyimpan informasi utama setiap perangkat
+router Mikrotik yang dikelola oleh sistem.
+
+Tabel ini menjadi pusat referensi untuk hampir seluruh data monitoring
+seperti traffic, resource usage, event log, client stats, dan konfigurasi
+router.
+
+Setiap router yang ingin dimonitor atau dikelola oleh sistem harus
+terdaftar pada tabel ini.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE mikrotik_boards (
+    board_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    
+    board_name VARCHAR(100) NOT NULL,
+    mikrotik_identity VARCHAR(100),
+    board_model VARCHAR(50),
+    site_group VARCHAR(50) DEFAULT 'Umum',
+    
+    mac_address MACADDR NOT NULL,
+    ip_address INET NOT NULL,
+    port_ssh INT DEFAULT 22,
+    port_api INT DEFAULT 8728,
+    port_winbox INT DEFAULT 8291,
+    port_ftp INT DEFAULT 21,
+    
+    is_online BOOLEAN DEFAULT FALSE,
+    is_monitor BOOLEAN DEFAULT TRUE,
+    is_public_review BOOLEAN DEFAULT TRUE,
+    is_maintenance BOOLEAN DEFAULT FALSE,
+    
+    last_ping_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+board_id
+Tipe: UUID
+
+Primary key untuk setiap router.
+Nilai dibuat otomatis menggunakan uuid_generate_v4() sehingga
+setiap perangkat memiliki identitas unik di dalam sistem.
+
+------------------------------------------------------------
+
+board_name
+Tipe: VARCHAR(100)
+
+Nama router yang digunakan di dalam sistem manajemen.
+Nama ini biasanya digunakan untuk identifikasi internal
+seperti pada dashboard monitoring atau laporan.
+
+Contoh:
+Router-Bekasi-Core
+Tower-Cikarang-01
+
+Kolom ini wajib diisi (NOT NULL).
+
+------------------------------------------------------------
+
+mikrotik_identity
+Tipe: VARCHAR(100)
+
+Identity router yang berasal dari konfigurasi Mikrotik
+pada menu:
+
+/system identity
+
+Nilai ini biasanya sama dengan identity yang diset pada router.
+
+------------------------------------------------------------
+
+board_model
+Tipe: VARCHAR(50)
+
+Menyimpan tipe perangkat Mikrotik.
+
+Contoh:
+RB750
+RB4011
+CCR1009
+CHR
+
+Kolom ini digunakan untuk identifikasi hardware router.
+
+------------------------------------------------------------
+
+site_group
+Tipe: VARCHAR(50)
+
+Digunakan untuk mengelompokkan router berdasarkan lokasi
+atau kategori site.
+
+Nilai default:
+Umum
+
+Contoh penggunaan:
+Bekasi
+Jakarta
+Tower
+Backbone
+Branch
+
+Pengelompokan ini memudahkan filtering dan monitoring
+router berdasarkan site.
+
+------------------------------------------------------------
+
+mac_address
+Tipe: MACADDR
+
+Menyimpan MAC address utama router.
+
+Format contoh:
+00:0C:42:AA:12:34
+
+Kolom ini wajib diisi dan digunakan sebagai identitas
+jaringan perangkat.
+
+------------------------------------------------------------
+
+ip_address
+Tipe: INET
+
+Alamat IP router yang digunakan oleh sistem untuk
+melakukan koneksi monitoring atau manajemen.
+
+Contoh:
+192.168.1.1
+10.10.10.1
+
+Tipe INET memungkinkan penyimpanan alamat IPv4 atau IPv6.
+
+------------------------------------------------------------
+
+port_ssh
+Tipe: INT
+
+Port SSH router yang digunakan untuk akses command line.
+
+Nilai default:
+22
+
+------------------------------------------------------------
+
+port_api
+Tipe: INT
+
+Port API Mikrotik yang digunakan oleh sistem untuk
+melakukan komunikasi melalui Mikrotik API.
+
+Nilai default:
+8728
+
+------------------------------------------------------------
+
+port_winbox
+Tipe: INT
+
+Port Winbox yang digunakan untuk manajemen router
+menggunakan aplikasi Winbox.
+
+Nilai default:
+8291
+
+------------------------------------------------------------
+
+port_ftp
+Tipe: INT
+
+Port FTP router yang digunakan untuk transfer file
+seperti backup konfigurasi.
+
+Nilai default:
+21
+
+------------------------------------------------------------
+
+is_online
+Tipe: BOOLEAN
+
+Menunjukkan status koneksi router berdasarkan hasil
+monitoring sistem.
+
+TRUE  : router terdeteksi online
+FALSE : router tidak dapat dijangkau
+
+Status ini dapat berubah berdasarkan hasil ping
+atau proses monitoring lainnya.
+
+------------------------------------------------------------
+
+is_monitor
+Tipe: BOOLEAN
+
+Menentukan apakah router akan dimonitor oleh sistem.
+
+TRUE  : router dimonitor
+FALSE : router tidak dimonitor
+
+Router yang tidak dimonitor tidak akan diproses oleh
+sistem monitoring otomatis.
+
+------------------------------------------------------------
+
+is_public_review
+Tipe: BOOLEAN
+
+Menentukan apakah router dapat ditampilkan pada
+halaman monitoring publik atau dashboard tertentu.
+
+TRUE  : router dapat ditampilkan
+FALSE : router disembunyikan dari tampilan publik
+
+------------------------------------------------------------
+
+is_maintenance
+Tipe: BOOLEAN
+
+Menunjukkan apakah router sedang dalam kondisi
+maintenance.
+
+TRUE  : router sedang maintenance
+FALSE : router beroperasi normal
+
+Status ini dapat digunakan untuk membedakan
+router offline karena maintenance atau karena
+gangguan jaringan.
+
+------------------------------------------------------------
+
+last_ping_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu terakhir router berhasil diping
+oleh sistem monitoring.
+
+Kolom ini digunakan untuk mengetahui kapan router
+terakhir merespon monitoring.
+
+------------------------------------------------------------
+
+created_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika data router pertama kali
+ditambahkan ke database.
+
+Nilai diisi otomatis oleh database menggunakan
+CURRENT_TIMESTAMP.
+
+------------------------------------------------------------
+
+updated_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu terakhir data router diperbarui.
+
+Kolom ini digunakan untuk mengetahui kapan
+perubahan terakhir terjadi pada data router.
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_board_logic
+Index pada kolom:
+- is_online
+- is_monitor
+- is_public_review
+
+Digunakan untuk mempercepat query monitoring
+yang melakukan filtering berdasarkan status router.
+
+------------------------------------------------------------
+
+idx_board_site
+Index pada kolom:
+site_group
+
+Digunakan untuk mempercepat pencarian router
+berdasarkan kelompok lokasi atau site.

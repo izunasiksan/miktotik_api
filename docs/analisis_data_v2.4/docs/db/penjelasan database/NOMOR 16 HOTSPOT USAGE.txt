@@ -1,0 +1,374 @@
+-- ============================================================
+-- NOMOR 16 HOTSPOT USAGE
+-- ============================================================
+
+-- 16a. Raw Harian
+CREATE TABLE hotspot_usage_raw (
+    raw_id         BIGINT NOT NULL DEFAULT nextval('hotspot_usage_raw_raw_id_seq'), -- Changed from BIGSERIAL
+    board_id       UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    username       VARCHAR(100) NOT NULL,
+    daily_download BIGINT DEFAULT 0,
+    daily_upload   BIGINT DEFAULT 0,
+    daily_uptime   BIGINT DEFAULT 0,
+    accuracy_pct   NUMERIC(5,2) DEFAULT 100.00,
+    log_date       DATE DEFAULT CURRENT_DATE,
+    PRIMARY KEY (raw_id, log_date)
+) PARTITION BY RANGE (log_date);
+CREATE INDEX idx_hotspot_usage_board_time ON hotspot_usage_raw(board_id, log_date DESC);
+CREATE INDEX idx_hotspot_usage_user_time ON hotspot_usage_raw(board_id, username, log_date DESC);
+
+-- 16b. Bulanan (Summary)
+CREATE TABLE hotspot_usage_monthly (
+    summary_id       SERIAL PRIMARY KEY,
+    username         VARCHAR(100) NOT NULL,
+    total_download   BIGINT DEFAULT 0,
+    total_upload     BIGINT DEFAULT 0,
+    total_uptime     BIGINT DEFAULT 0,
+    frequency_days   INT,
+    month_period     DATE NOT NULL,
+    is_frequent_user BOOLEAN DEFAULT FALSE,
+    accuracy_pct     NUMERIC(5,2) DEFAULT 100.00, -- V2.1 Metadata Requirement
+    last_updated     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_user_monthly UNIQUE(username, month_period)
+);
+CREATE INDEX idx_hotspot_usage_monthly_lookup ON hotspot_usage_monthly(username, month_period DESC);
+
+Tujuan:
+Menyimpan data penggunaan jaringan oleh user hotspot
+untuk kebutuhan monitoring, analisis perilaku pengguna,
+dan laporan penggunaan jaringan.
+
+Data hotspot dipisahkan menjadi dua level:
+
+1. RAW DATA HARIAN
+2. SUMMARY BULANAN
+
+Hal ini dilakukan agar sistem tetap efisien
+dalam menyimpan data historis dalam jumlah besar.
+
+------------------------------------------------------------
+16A. HOTSPOT USAGE RAW (HARIAN)
+------------------------------------------------------------
+
+Tujuan:
+
+Menyimpan data penggunaan hotspot per user
+untuk setiap hari.
+
+Data ini merupakan sumber utama untuk:
+
+- analisis kebiasaan pengguna
+- pembuatan laporan bulanan
+- analisis trafik jaringan
+- analisis uptime koneksi user
+
+------------------------------------------------------------
+
+Field Utama
+
+username
+→ nama user hotspot
+
+daily_download
+→ total download harian user (bytes)
+
+daily_upload
+→ total upload harian user (bytes)
+
+daily_uptime
+→ total waktu koneksi user dalam satu hari (detik)
+
+log_date
+→ tanggal data usage
+
+------------------------------------------------------------
+
+Sumber Data MikroTik
+
+Data diambil dari:
+
+/ip/hotspot/active/print
+/ip/hotspot/user/print
+
+Field yang biasanya digunakan:
+
+bytes-in
+bytes-out
+uptime
+
+------------------------------------------------------------
+
+Satuan Data
+
+Semua trafik disimpan menggunakan satuan dasar:
+
+BYTE
+
+Kolom terkait:
+
+daily_download
+daily_upload
+
+Tipe data:
+
+BIGINT
+
+Tujuan:
+
+- menjaga akurasi data
+- menghindari rounding error
+- mempermudah analisis historis
+
+------------------------------------------------------------
+
+Satuan Uptime
+
+daily_uptime disimpan dalam:
+
+DETIK
+
+Contoh:
+
+3600 = 1 jam
+7200 = 2 jam
+
+Frontend dapat mengubahnya menjadi:
+
+jam
+menit
+hari
+
+------------------------------------------------------------
+
+Metode Perhitungan
+
+Perhitungan trafik menggunakan metode:
+
+DELTA COUNTER
+
+Rumus:
+
+usage = counter_sekarang - counter_sebelumnya
+
+Jika counter reset:
+
+counter_sekarang < counter_sebelumnya
+
+maka:
+
+usage = counter_sekarang
+
+------------------------------------------------------------
+
+Partition System
+
+Tabel menggunakan:
+
+PARTITION BY RANGE (log_date)
+
+Tujuan:
+
+- meningkatkan performa query historis
+- mempermudah manajemen data besar
+- memudahkan penghapusan data lama
+
+Contoh partition:
+
+hotspot_usage_raw_2026_03
+hotspot_usage_raw_2026_04
+
+------------------------------------------------------------
+
+
+
+-- ============================================================
+-- NOMOR 16B: HOTSPOT MONTHLY SUMMARY
+-- ============================================================
+
+Tujuan:
+
+Menyimpan ringkasan penggunaan hotspot
+per user setiap bulan.
+
+Summary ini dibuat dari agregasi data:
+
+hotspot_usage_raw
+
+------------------------------------------------------------
+
+Field Utama
+
+username
+→ nama user hotspot
+
+total_download
+→ total download selama bulan berjalan (bytes)
+
+total_upload
+→ total upload selama bulan berjalan (bytes)
+
+total_uptime
+→ total waktu koneksi selama bulan berjalan (detik)
+
+frequency_days
+→ jumlah hari user aktif dalam bulan tersebut
+
+month_period
+→ tanggal bulan (tanggal 1 setiap bulan)
+
+------------------------------------------------------------
+
+Contoh:
+
+month_period
+
+2026-03-01
+2026-04-01
+
+------------------------------------------------------------
+
+Frequent User Detection
+
+Field:
+
+is_frequent_user
+
+digunakan untuk menandai user hotspot
+yang sering menggunakan jaringan.
+
+Contoh aturan:
+
+Jika:
+
+frequency_days >= 20
+
+maka:
+
+is_frequent_user = TRUE
+
+Tujuan:
+
+- mendeteksi pelanggan tetap
+- analisis loyalitas user
+- analisis beban jaringan
+
+------------------------------------------------------------
+
+Sumber Data Summary
+
+Summary dibuat menggunakan query agregasi:
+
+SUM(daily_download)
+SUM(daily_upload)
+SUM(daily_uptime)
+COUNT(log_date)
+
+------------------------------------------------------------
+
+Akurasi Data
+
+accuracy_pct digunakan untuk menandai
+tingkat kelengkapan data.
+
+Interpretasi:
+
+100.00 = data lengkap
+80.00 - 99.99 = sebagian polling hilang
+< 80.00 = data tidak lengkap
+
+------------------------------------------------------------
+
+
+
+-- ============================================================
+-- NOMOR 16C: ATURAN SATUAN DATA HOTSPOT
+-- ============================================================
+
+Backend Rule
+
+Backend HARUS menyimpan data menggunakan satuan dasar:
+
+BYTE
+
+Backend TIDAK BOLEH menggunakan:
+
+KB
+MB
+GB
+Mbps
+
+Tujuan:
+
+- menjaga konsistensi data
+- menghindari kesalahan konversi
+- menjaga akurasi analisis
+
+------------------------------------------------------------
+
+Frontend Display Rule
+
+Frontend diperbolehkan mengubah satuan menjadi:
+
+KB
+MB
+GB
+TB
+
+Contoh:
+
+125000000 bytes
+ditampilkan menjadi
+
+119.21 MB
+
+------------------------------------------------------------
+
+Jika ingin menampilkan speed:
+
+Mbps = (bytes_per_second * 8) / 1000000
+
+------------------------------------------------------------
+
+
+
+-- ============================================================
+-- NOMOR 16D: TUJUAN ANALISIS HOTSPOT DATA
+-- ============================================================
+
+Data hotspot digunakan untuk:
+
+1. Analisis penggunaan jaringan
+
+Mengetahui user hotspot dengan konsumsi bandwidth terbesar.
+
+------------------------------------------------------------
+
+2. Analisis perilaku pengguna
+
+Contoh:
+
+- jam aktif hotspot
+- durasi koneksi rata-rata
+- frekuensi login hotspot
+
+------------------------------------------------------------
+
+3. Analisis beban jaringan
+
+Mengetahui waktu peak usage hotspot.
+
+------------------------------------------------------------
+
+4. Identifikasi user aktif
+
+Menentukan user hotspot yang sering menggunakan jaringan.
+
+------------------------------------------------------------
+
+5. Deteksi anomali trafik
+
+Contoh:
+
+- upload tidak normal
+- penggunaan bandwidth berlebihan
+- kemungkinan aktivitas mencurigakan

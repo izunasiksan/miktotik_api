@@ -1,0 +1,252 @@
+-- ============================================================
+-- NOMOR 14: INTERFACE TRAFFIC USAGE (PENJELASAN & ATURAN)
+-- ============================================================
+
+CREATE TABLE board_interface_usage (
+    usage_id       BIGINT NOT NULL DEFAULT nextval('board_interface_usage_usage_id_seq'), -- Changed from BIGSERIAL
+    board_id       UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    interface_name VARCHAR(100) NOT NULL,
+    total_tx_bytes BIGINT DEFAULT 0,
+    total_rx_bytes BIGINT DEFAULT 0,
+    accuracy_pct   NUMERIC(5,2) DEFAULT 100.00,
+    log_date       DATE DEFAULT CURRENT_DATE,
+    last_update    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (usage_id, log_date)
+) PARTITION BY RANGE (log_date);
+CREATE INDEX idx_usage_report ON board_interface_usage(board_id, log_date DESC);
+CREATE INDEX idx_usage_interface_time ON board_interface_usage(board_id, interface_name, log_date DESC);
+
+
+Tujuan:
+Menyimpan akumulasi penggunaan trafik per interface MikroTik per hari
+untuk kebutuhan laporan bandwidth, analisis historis, dan deteksi
+anomali trafik jaringan.
+
+Data pada tabel ini bersifat HISTORICAL USAGE, bukan realtime traffic.
+
+------------------------------------------------------------
+Sumber Data
+------------------------------------------------------------
+
+Data diambil dari MikroTik API.
+
+Endpoint yang umum digunakan:
+- /interface/monitor-traffic
+- /interface/print stats
+
+Field utama yang digunakan:
+- tx-byte
+- rx-byte
+
+Nilai tersebut merupakan COUNTER kumulatif sejak interface aktif.
+
+------------------------------------------------------------
+Aturan Penyimpanan Data
+------------------------------------------------------------
+
+1. Format Penyimpanan
+
+Semua trafik disimpan dalam satuan dasar:
+
+BYTE
+
+Kolom:
+- total_tx_bytes
+- total_rx_bytes
+
+Tipe data:
+BIGINT
+
+Tujuan:
+- konsistensi data
+- menghindari rounding error
+- mempermudah kalkulasi historis
+
+------------------------------------------------------------
+
+2. Metode Perhitungan Usage
+
+Usage dihitung menggunakan metode selisih counter.
+
+Rumus:
+
+usage = counter_sekarang - counter_sebelumnya
+
+Contoh:
+
+07:00 tx-byte = 1000000
+08:00 tx-byte = 1400000
+
+usage_tx = 400000 bytes
+
+------------------------------------------------------------
+
+3. Reset Counter Handling
+
+Counter MikroTik dapat reset karena:
+
+- reboot router
+- reset interface
+- overflow counter
+
+Jika terjadi kondisi:
+
+counter_sekarang < counter_sebelumnya
+
+maka sistem harus menganggap terjadi reset counter.
+
+Perhitungan menjadi:
+
+usage = counter_sekarang
+
+------------------------------------------------------------
+
+4. Akumulasi Harian
+
+Setiap polling sistem:
+
+usage_tx
+usage_rx
+
+ditambahkan ke total harian:
+
+total_tx_bytes
+total_rx_bytes
+
+hingga pergantian tanggal (log_date).
+
+------------------------------------------------------------
+
+5. Rotasi Data (Partition)
+
+Tabel menggunakan:
+
+PARTITION BY RANGE (log_date)
+
+Tujuan:
+- meningkatkan performa query
+- mempermudah pengelolaan data besar
+- memudahkan proses arsip data
+
+Contoh nama partition:
+
+board_interface_usage_2026_03
+board_interface_usage_2026_04
+
+------------------------------------------------------------
+
+6. Identifikasi Interface
+
+Interface diidentifikasi menggunakan:
+
+- board_id
+- interface_name
+
+Contoh interface:
+
+ether1
+ether2
+sfp1
+pppoe-out1
+
+------------------------------------------------------------
+
+7. Akurasi Data
+
+Kolom:
+
+accuracy_pct
+
+digunakan untuk menandai tingkat kelengkapan data polling.
+
+Contoh interpretasi:
+
+100.00 = data polling lengkap
+80.00 - 99.99 = ada polling yang terlewat
+< 80.00 = data tidak lengkap
+
+------------------------------------------------------------
+
+
+
+-- ============================================================
+-- NOMOR 14B: CATATAN TAMBAHAN SATUAN TRAFIK
+-- ============================================================
+
+Backend Rule:
+
+Semua data trafik dalam sistem HARUS menggunakan satuan dasar:
+
+BYTE
+
+Backend TIDAK BOLEH menggunakan satuan:
+
+KB
+MB
+GB
+Mbps
+
+Tujuan:
+- menjaga konsistensi sistem
+- menghindari kesalahan konversi
+- menjaga akurasi analisis data historis
+
+------------------------------------------------------------
+
+Frontend Display Rule:
+
+Frontend diperbolehkan menampilkan satuan yang lebih mudah dibaca:
+
+KB
+MB
+GB
+TB
+Mbps
+
+Namun konversi tersebut hanya untuk tampilan UI.
+
+Contoh:
+
+120000000 bytes
+ditampilkan menjadi
+114.44 MB
+
+------------------------------------------------------------
+
+Konversi Speed (Jika diperlukan)
+
+Jika ingin menampilkan kecepatan dalam Mbps:
+
+Mbps = (bytes_per_second * 8) / 1000000
+
+Contoh:
+
+125000 bytes/s
+= 1 Mbps
+
+------------------------------------------------------------
+
+
+
+-- ============================================================
+-- NOMOR 14C: RELASI INTERFACE CONFIGURATION
+-- ============================================================
+
+Relasi tabel:
+
+board_interface_configs
+        ↓
+board_interface_usage
+
+Tujuan relasi:
+
+- menentukan interface yang dimonitor
+- menentukan uplink utama
+- memberikan label interface
+- memudahkan identifikasi trafik
+
+Contoh mapping:
+
+ether1 → ISP A
+ether2 → ISP B
+sfp1   → Backbone

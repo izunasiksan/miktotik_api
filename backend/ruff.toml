@@ -1,0 +1,18 @@
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F"]
+ignore = [
+  "E501",  # line too long (defer to formatter / allow long SQL strings)
+  "E203",  # whitespace before ':' (Black compatibility if added later)
+  "E266",  # too many leading '#' for block comment
+  "F401",  # imported but unused (gradual adoption; many files import typing/logging)
+  "F841",  # local variable assigned but never used (allow WIP vars)
+]
+
+[format]
+quote-style = "preserve"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

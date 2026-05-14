@@ -1,0 +1,33 @@
+# HashiCorp Vault Integration (Secret Injection)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mikrotik-api-vault
+  annotations:
+    kubernetes.io/service-account.name: "mikrotik-api"
+---
+# Example Deployment with Vault Injection
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mikrotik-api-vault-enabled
+spec:
+  template:
+    metadata:
+      annotations:
+        # Vault Agent Injector Annotations
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "mikrotik-api-role"
+        vault.hashicorp.com/agent-inject-secret-config: "secret/data/mikrotik/config"
+        vault.hashicorp.com/agent-inject-template-config: |
+          {{ with secret "secret/data/mikrotik/config" -}}
+          export DB_PASS="{{ .Data.data.DB_PASS }}"
+          export API_KEY="{{ .Data.data.API_KEY }}"
+          {{- end }}
+    spec:
+      serviceAccountName: mikrotik-api-vault
+      containers:
+      - name: mikrotik-api
+        image: mikrotik-api:latest
+        command: ["/bin/sh", "-c"]
+        args: ["source /vault/secrets/config && uvicorn app.main:app"]

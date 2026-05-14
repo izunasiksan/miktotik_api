@@ -1,0 +1,321 @@
+NOMOR 10 BOARD EVENTS
+Router Event & Audit Trail Log
+
+Tabel board_events menyimpan catatan
+peristiwa (event) yang terjadi pada
+router Mikrotik yang dimonitor oleh
+sistem.
+
+Event ini berfungsi sebagai audit trail
+untuk mencatat berbagai kejadian seperti
+perubahan status koneksi router,
+aktivitas sistem, autentikasi pengguna,
+serta kejadian penting lainnya yang
+terjadi pada perangkat.
+
+Tabel ini menggunakan mekanisme partition
+berdasarkan waktu agar penyimpanan log
+event dalam jumlah besar tetap efisien
+dan performa query tetap stabil.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE board_events (
+    event_id       BIGINT NOT NULL DEFAULT nextval('board_events_event_id_seq'),
+    board_id       UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    event_category VARCHAR(20),
+    event_level    VARCHAR(10),
+    event_name     TEXT NOT NULL,
+    event_detail   TEXT,
+    performed_by   UUID REFERENCES master_users(user_id) ON DELETE SET NULL,
+    is_reset_event BOOLEAN DEFAULT FALSE,
+    accuracy_pct   NUMERIC(5,2) DEFAULT 100.00,
+    log_time       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (event_id, log_time)
+) PARTITION BY RANGE (log_time);
+
+CREATE INDEX idx_board_events_board_time
+ON board_events(board_id, log_time DESC);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+event_id
+Tipe: BIGINT
+
+Identifier unik untuk setiap event
+yang dicatat oleh sistem.
+
+Nilai dihasilkan otomatis menggunakan
+sequence:
+
+nextval('board_events_event_id_seq')
+
+Kolom ini tidak menggunakan BIGSERIAL
+karena tabel menggunakan mekanisme
+partition sehingga penggunaan sequence
+secara eksplisit lebih disarankan.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan event
+dengan router pada tabel mikrotik_boards.
+
+Relasi:
+
+board_events.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari
+tabel mikrotik_boards maka seluruh
+event yang terkait dengan router
+tersebut juga akan ikut dihapus.
+
+------------------------------------------------------------
+
+event_category
+Tipe: VARCHAR(20)
+
+Menyimpan kategori dari event yang
+terjadi pada router.
+
+Contoh kategori:
+
+connection
+system
+auth
+
+Kategori ini membantu dalam
+pengelompokan jenis event yang
+terjadi pada sistem.
+
+------------------------------------------------------------
+
+event_level
+Tipe: VARCHAR(10)
+
+Menunjukkan tingkat keparahan
+atau prioritas dari event.
+
+Contoh nilai:
+
+info
+warning
+critical
+
+Level ini digunakan untuk membantu
+sistem monitoring dalam mendeteksi
+kejadian penting atau gangguan
+pada router.
+
+------------------------------------------------------------
+
+event_name
+Tipe: TEXT
+
+Menyimpan nama atau judul utama
+dari event yang dicatat.
+
+Kolom ini wajib diisi karena setiap
+event harus memiliki deskripsi utama.
+
+Contoh nilai:
+
+Router Connectivity Changed
+Router Offline
+Login Attempt
+Configuration Update
+
+------------------------------------------------------------
+
+event_detail
+Tipe: TEXT
+
+Menyimpan informasi tambahan
+atau penjelasan lebih rinci
+mengenai event yang terjadi.
+
+Kolom ini bersifat opsional
+dan dapat digunakan untuk
+menyimpan detail teknis.
+
+Contoh nilai:
+
+Router is now Online
+Router Ping Timeout
+User login from dashboard
+
+------------------------------------------------------------
+
+performed_by
+Tipe: UUID
+
+Foreign key yang merujuk pada
+user pada tabel master_users
+yang melakukan suatu aksi
+yang menghasilkan event.
+
+Relasi:
+
+board_events.performed_by
+→ master_users.user_id
+
+Constraint:
+
+ON DELETE SET NULL
+
+Jika user dihapus dari tabel
+master_users maka nilai kolom
+ini akan menjadi NULL namun
+data event tetap dipertahankan.
+
+------------------------------------------------------------
+
+is_reset_event
+Tipe: BOOLEAN
+
+Menandai apakah event tersebut
+merupakan event reset sistem.
+
+Nilai default:
+
+FALSE
+
+Kolom ini dapat digunakan untuk
+membedakan event biasa dengan
+event yang berkaitan dengan
+proses reset atau pemulihan
+sistem.
+
+------------------------------------------------------------
+
+accuracy_pct
+Tipe: NUMERIC(5,2)
+
+Menyimpan persentase tingkat
+akurasi data event yang
+dicatat oleh sistem.
+
+Nilai default:
+
+100.00
+
+Kolom ini digunakan sebagai
+metadata untuk menunjukkan
+tingkat keakuratan data log.
+
+------------------------------------------------------------
+
+log_time
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika event
+dicatat oleh sistem monitoring.
+
+Nilai default:
+
+CURRENT_TIMESTAMP
+
+Kolom ini juga digunakan
+sebagai dasar pembagian
+partition tabel.
+
+Contoh nilai:
+
+2026-03-06 23:45:00+07
+
+============================================================
+PRIMARY KEY
+============================================================
+
+PRIMARY KEY (event_id, log_time)
+
+Primary key menggunakan kombinasi
+dua kolom:
+
+event_id
+log_time
+
+Kombinasi ini diperlukan karena
+tabel menggunakan partition
+berdasarkan waktu.
+
+============================================================
+PARTITIONING
+============================================================
+
+Tabel ini menggunakan metode:
+
+PARTITION BY RANGE (log_time)
+
+Artinya data event akan dibagi
+ke dalam beberapa partisi
+berdasarkan rentang waktu.
+
+Partition digunakan untuk
+meningkatkan performa penyimpanan
+dan query pada data log yang
+terus bertambah.
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_board_events_board_time
+
+Index pada kolom:
+
+board_id
+log_time DESC
+
+Index ini digunakan untuk
+mempercepat query yang
+mengambil data event
+berdasarkan router dan
+waktu terbaru.
+
+Contoh penggunaan query:
+
+- melihat histori event router
+- audit aktivitas sistem
+- mendeteksi gangguan koneksi router
+
+============================================================
+TRIGGER OTOMATISASI EVENT
+============================================================
+
+Sistem menggunakan trigger
+database untuk mencatat
+perubahan status koneksi
+router secara otomatis.
+
+Trigger ini akan aktif ketika
+kolom is_online pada tabel
+mikrotik_boards berubah nilai.
+
+Jika status router berubah
+dari offline ke online atau
+sebaliknya maka sistem akan
+secara otomatis menambahkan
+catatan event baru ke dalam
+tabel board_events.
+
+Event yang dicatat meliputi:
+
+Router Connectivity Changed
+Router Offline
+
+Mekanisme ini memastikan bahwa
+setiap perubahan status router
+tercatat secara otomatis dalam
+audit trail sistem.

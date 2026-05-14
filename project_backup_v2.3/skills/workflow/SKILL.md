@@ -1,0 +1,317 @@
+---
+name: workflow
+description: workflow
+---
+
+============================================================
+FASE 1: INISIALISASI KEAMANAN & KONEKSI DATABASE
+Project: Mikrotik Management System Backend
+Arsitektur: Asynchronous Python (Asyncio + SQLAlchemy/Asyncpg)
+A. KONFIGURASI ENVIRONMENT VARIABLES (.env)
+Langkah pertama backend adalah memuat variabel lingkungan yang bersifat rahasia. File ini TIDAK BOLEH di-commit ke Git (harus masuk .gitignore).
+
+Konfigurasi PostgreSQL
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=db_master_mikrotik
+DB_USER=postgres
+DB_PASS=root
+
+Keamanan Kredensial (Sangat Penting untuk Tabel 3)
+Key AES-256-GCM (32 bytes) yang digunakan untuk enkripsi/dekripsi password Mikrotik
+AES_SECRET_KEY=masukkan_32_karakter_acak_dan_kombinasi_rumit_disini
+
+Konfigurasi Worker (Celery/Async)
+MAX_DB_CONNECTIONS=20
+POLLING_INTERVAL_MINUTES=5
+
+B. SETUP KONEKSI DATABASE (CONNECTION POOLING)
+Karena sistem akan melakukan Polling ke puluhan/ratusan router secara bersamaan setiap 5 menit, Backend DILARANG menggunakan koneksi sinkron standar (seperti psycopg2 biasa tanpa pooling).
+
+Logika Koneksi (Menggunakan SQLAlchemy + Asyncpg):
+
+Backend Engine:
+Membangun "Connection Pool" asinkron menggunakan format URL:
+postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}
+
+Pool Sizing:
+
+Pool_Size: 10 (Menyiapkan 10 pipa koneksi standby ke PostgreSQL)
+
+Max_Overflow: 20 (Jika sedang sibuk memproses banyak router, maksimal buka 20 koneksi tambahan, lalu antre).
+
+Pool_Recycle: 3600 (Koneksi yang idle selama 1 jam akan di-refresh agar tidak terjadi "database connection dropped" atau stale connection).
+
+Ping Check:
+Saat aplikasi Python pertama kali "Run" (Start-up), backend wajib melakukan query sederhana: "SELECT 1".
+
+Jika berhasil: Lanjut menyalakan Background Worker.
+
+Jika gagal: Tampilkan error "CRITICAL: Database Unreachable" dan matikan aplikasi.
+
+C. LOGIKA KEAMANAN KREDENSIAL (AES DECRYPTION IN MEMORY)
+Ini adalah alur wajib saat Python mencoba login ke router Mikrotik berdasarkan data dari Database:
+
+Ambil Data (Database -> Python):
+Python melakukan query ke tabel board_credentials (Tabel 3) berdasarkan board_id target.
+Yang didapat adalah: username_mikrotik dan password_mikrotik_encrypted (berbentuk string acak/hash).
+
+Dekripsi (Python Memory):
+Python memanggil fungsi dekripsi AES (contoh menggunakan modul cryptography.fernet atau PyCryptodome).
+Fungsi ini memasukkan password_mikrotik_encrypted dan membukanya menggunakan AES_SECRET_KEY dari file .env.
+
+Eksekusi Login (API Mikrotik):
+Python mendapatkan "Password Asli" (Plaintext).
+Password ini HANYA berada di RAM server saat itu juga.
+Python menggunakannya untuk login via Port API (8728) atau VPN DNS.
+
+Garbage Collection (Keamanan Memori):
+Segera setelah sesi login ke Mikrotik selesai (atau gagal), variabel yang menyimpan password asli di dalam script Python diubah nilainya menjadi None (dihancurkan dari memori) agar tidak bisa dibaca jika server backend diretas.
+
+============================================================
+AKHIR FASE 1
+============================================================
+FASE 2: ARSITEKTUR WORKER & TASK QUEUE (POLLING LOGIC)
+Project: Mikrotik Management System Backend
+Arsitektur: Asynchronous Python (Asyncio / Celery / APScheduler)
+A. MANAJEMEN ANTREAN (CONCURRENCY & BATCHING)
+Sistem tidak boleh melakukan query ke 100 router secara bersamaan di detik yang sama karena akan membuat CPU server Backend dan jaringan bottleneck.
+
+Pembagian Batch (Chunking):
+
+Backend mengambil semua board_id dari tabel mikrotik_boards yang berstatus is_monitor = TRUE dan is_maintenance = FALSE.
+
+Jika ada 100 router, Backend membaginya menjadi 5 antrean (batch) di mana setiap antrean memproses 20 router secara paralel (Asynchronous).
+
+Timeout Handling:
+
+Setiap koneksi ke API Mikrotik diberi batas waktu (Timeout) maksimal 5-10 detik.
+
+Jika router tidak merespon (karena mati atau internet putus), Backend langsung melewati (skip) router tersebut agar tidak menghambat antrean router lain.
+
+B. THE POLLING LOOP (EKSEKUSI SETIAP 5 - 15 MENIT)
+Ini adalah fungsi utama (jantung) yang terus berdetak mengambil data Real-Time dari router:
+
+Tarik Data Resource (Tabel 7):
+
+Perintah API: /system resource print
+
+Data didapat: cpu-load, free-memory, free-hdd, uptime.
+
+Aksi: INSERT INTO board_resource_stats.
+
+Tarik Data Client Aktif (Tabel 6):
+
+Perintah API: /ip hotspot active print count-only dan /ppp active print count-only.
+
+Data didapat: Angka total user hotspot dan PPPoE yang sedang login.
+
+Aksi: INSERT INTO board_client_stats.
+
+Tarik Data Kecepatan Keperluan Real-Time (Tabel 8):
+
+Perintah API: /interface print stats
+
+Data didapat: Kecepatan lalu lintas (tx/rx) per detik pada saat itu.
+
+Konversi: Ubah Bytes-per-second ke Mbps.
+
+Aksi: INSERT INTO board_speed_stats.
+
+C. LOGIKA PERHITUNGAN KUOTA DATA (USAGE TRACKING - TABEL 14 & 15)
+Di dalam Polling Loop yang sama, Backend juga bertugas menghitung akumulasi total pemakaian data (GB/TB). Ini adalah bagian paling rawan jika terjadi salah hitung.
+
+MASALAH:
+Mikrotik menghitung pemakaian data di memori sementara. Jika router direstart, atau jika user PPPoE putus-nyambung, angka tx-byte dan rx-byte di Mikrotik akan kembali ke 0.
+
+SOLUSI BACKEND (Algoritma Delta):
+
+Ambil Nilai Mikrotik:
+Backend mendapatkan nilai rx-byte dan tx-byte SAAT INI dari antarmuka router.
+
+Cek Nilai Database Terakhir:
+Backend melihat data total_rx_bytes terakhir yang tersimpan di tabel board_interface_usage (Tabel 14) atau board_pppoe_usage (Tabel 15) untuk hari yang sama.
+
+Hitung Selisih (Delta):
+RUMUS UTAMA: Delta = (Byte Mikrotik Saat Ini) - (Byte Tarikan Sebelumnya).
+
+Deteksi Reset/Reboot (Logika Cerdas):
+
+JIKA (Byte Mikrotik Saat Ini) < (Byte Tarikan Sebelumnya)
+
+MAKA sistem mendeteksi bahwa counter Mikrotik baru saja ter-reset ke 0.
+
+RUMUS UBAH: Delta = (Byte Mikrotik Saat Ini).
+
+Simpan Akumulasi (UPSERT):
+
+Tambahkan Delta tersebut ke database.
+
+UPDATE board_interface_usage SET total_rx_bytes = total_rx_bytes + Delta WHERE ...
+
+Dengan algoritma ini, meskipun router Mikrotik mati listrik atau di-reboot 10 kali dalam sehari, perhitungan kuota di database Anda (Tabel 14 dan Tabel 15) tidak akan pernah salah, berkurang, atau menjadi minus.
+
+============================================================
+AKHIR FASE 2
+============================================================
+FASE 3: SISTEM MONITORING STATUS & TELEGRAM ALERT (REAL-TIME)
+Project: Mikrotik Management System Backend
+Arsitektur: Asynchronous Python (Ping Sweeper & Alert Worker)
+A. PING SWEEPER & PENGECEKAN STATUS (Setiap 1 - 2 Menit)
+Selain Polling data berat (Fase 2), Backend memiliki "Ping Sweeper", sebuah worker ringan yang tugasnya hanya mengecek apakah router hidup atau mati.
+
+Fast Asynchronous Ping:
+Python menggunakan library seperti aioping untuk melempar paket ICMP (Ping) ke ip_address semua router secara bersamaan.
+
+Logic 3x Retry (Mencegah False Alarm):
+
+Jika router gagal di-ping 1x, Backend menandainya sebagai "Suspect" (belum dianggap mati).
+
+Backend mengulang ping hingga 3x berturut-turut (interval 10 detik).
+
+Jika tetap RTO (Request Time Out), maka Backend mengeksekusi query:
+UPDATE mikrotik_boards SET is_online = FALSE, updated_at = NOW() WHERE board_id = '...'
+
+Sebaliknya, jika router yang mati kembali merespon, Backend melakukan:
+UPDATE mikrotik_boards SET is_online = TRUE, updated_at = NOW() WHERE board_id = '...'
+
+B. INTEGRASI DATABASE TRIGGER (OTOMATISASI AUDIT TRAIL)
+Saat Python melakukan UPDATE is_online pada Tabel 2 (mikrotik_boards), Python TIDAK PERLU melakukan query INSERT secara manual untuk mencatat sejarah matinya router tersebut.
+
+Peran PostgreSQL Trigger:
+Begitu nilai is_online berubah (True ke False, atau sebaliknya), fungsi fungsi_auto_log_status() yang sudah kita tanam di database akan otomatis menyala (Triggered).
+
+Hasil Otomatis:
+Database langsung menyuntikkan baris baru ke Tabel 10 (board_events) dengan event_level 'critical' (jika mati) atau 'info' (jika hidup kembali).
+Ini sangat meringankan beban kerja Python.
+
+C. TELEGRAM ALERT SYSTEM & ANTI-SPAM LOGIC
+Ini adalah Alur Kerja (Worker) terpisah yang khusus memantau tabel board_events (Tabel 10) dan mengirim notifikasi Telegram ke teknisi yang tepat.
+
+Event Listener:
+Alert Worker secara periodik (setiap 10 detik) mengecek apakah ada event 'critical' baru di board_events yang belum dinotifikasi.
+
+Pengecekan Maintenance (Bypass):
+Sebelum menyiapkan pesan, Backend WAJIB mengecek is_maintenance di mikrotik_boards.
+
+JIKA is_maintenance = TRUE, maka batalkan pengiriman pesan (Silent Mode).
+
+Flapping Delay Logic (Anti-Spam):
+Router sering "Flapping" (mati 5 detik, lalu hidup lagi karena cable loose atau restart cepat).
+
+Saat mendeteksi router mati, Alert Worker menahan diri (Delay) selama 30 - 60 detik.
+
+Setelah 60 detik, Worker mengecek ulang status terakhir router.
+
+Jika router sudah KEMBALI HIDUP dalam jeda waktu tersebut, pesan "Router Mati" dibatalkan. Tidak ada spam di grup Telegram!
+
+Routing Pesan (Recipient Mapping):
+Jika router benar-benar mati lebih dari 60 detik, Backend mencari siapa yang harus dikabari:
+
+Query ke Tabel 12b (telegram_recipients) menggunakan board_id target.
+
+Ambil chat_id teknisi/grup yang bertanggung jawab.
+
+Ambil bot_token dari Tabel 12a (telegram_bots).
+
+Eksekusi API Telegram:
+Backend menembak API Telegram:
+POST https://api.telegram.org/bot{bot_token}/sendMessage
+Pesan: "🚨 URGENT: Router [board_name] di Site [site_group] DOWN pada [log_time]! Mohon segera dicek."
+
+============================================================
+AKHIR FASE 3
+
+============================================================
+FASE 4: CRON JOBS HARIAN & BULANAN (AGREGASI & SINKRONISASI GLOBAL)
+Project: Mikrotik Management System Backend
+Arsitektur: Asynchronous Python (APScheduler / Celery Beat)
+Fase ini berisi sekumpulan tugas terjadwal (Scheduled Tasks) yang berjalan secara otomatis di latar belakang pada waktu-waktu tertentu. Tujuannya adalah menjaga ukuran database tetap efisien dan memastikan tidak ada data yang hilang saat router melakukan reset.
+
+A. THE TASK FORCE SYNC (Setiap Hari - Pukul 23:00 WIB)
+Ini adalah implementasi dari Aturan Global (Nomor 17). Sangat krusial untuk mencegah hilangnya perhitungan kuota data.
+
+Latar Belakang:
+Mikrotik (via scheduler internalnya) biasanya diatur untuk menjalankan /ip hotspot user reset-counters pada pukul 00:00. Jika Backend tidak menarik data sebelum jam tersebut, maka pemakaian data dari tarikan terakhir hingga tengah malam akan hangus.
+
+Eksekusi Backend:
+
+Tepat pukul 23:55, Backend menghentikan sementara antrean Polling reguler.
+
+Backend memaksa (Force Sync) tarikan data ke semua router serentak.
+
+Mengambil angka tx-byte dan rx-byte terakhir hari itu.
+
+Melakukan kalkulasi "Delta" dan menyimpannya ke board_interface_usage (Tabel 14), board_pppoe_usage (Tabel 15), dan hotspot_usage_raw (Tabel 16a).
+
+Setelah selesai, Backend kembali ke mode siaga.
+
+B. AGREGASI DATA HARIAN (Setiap Hari - Pukul 00:01 WIB)
+Tugas ini merangkum jutaan baris data mentah dari hari kemarin menjadi beberapa baris kesimpulan saja.
+
+Eksekusi SQL oleh Python:
+Backend memanggil fungsi atau mengeksekusi Query INSERT INTO board_daily_summary (Tabel 9).
+
+Kalkulasi Data Hari Kemarin:
+
+Menghitung nilai Rata-rata (AVG) Download & Upload dari board_speed_stats (Tabel 8).
+
+Mencari nilai Kecepatan Tertinggi (MAX).
+
+Menghitung rata-rata beban CPU & RAM dari board_resource_stats (Tabel 7).
+
+Mencari Peak Client (Jumlah user aktif terbanyak) dari board_client_stats (Tabel 6).
+
+C. THE 20-DAYS LOYALTY FILTER (Setiap Tanggal 1 - Pukul 01:00 WIB)
+Mengolah data pergerakan pelanggan Hotspot selama sebulan penuh.
+
+Proses Filtering (Tabel 16):
+
+Backend menjalankan query untuk menghitung COUNT(log_date) tiap username di tabel hotspot_usage_raw.
+
+JIKA >= 20 hari: Backend mengakumulasi total download, upload, dan uptime, lalu memindahkannya ke tabel hotspot_usage_monthly (Tabel 16b).
+
+User tersebut otomatis ditandai sebagai is_frequent_user = TRUE.
+
+D. AUTOMATED BACKUP & CLEANUP (Jadwal Mingguan / Sesuai Pengaturan)
+Menjalankan alur pengamanan konfigurasi Mikrotik ke server terpusat.
+
+Create Backup File:
+Backend masuk via SSH/API ke Mikrotik dan mengirim perintah:
+/export file=backup_RouterA_TglSekian.rsc
+
+Delay & Transfer (FTP/SFTP):
+
+Backend menunggu 2-3 menit agar Mikrotik selesai membuat file.
+
+Backend mengunduh file tersebut ke storage lokal / S3 / Google Drive.
+
+Integrity Check & Logging:
+
+Backend mengecek ukuran file. Jika > 0 KB, proses dianggap sukses.
+
+Insert rekaman ke tabel board_backups (Tabel 11).
+
+The Cleanup (Wajib):
+
+Backend mengirim perintah ke Mikrotik untuk menghapus file .rsc yang baru saja dibuat.
+
+Perintah: /file remove backup_RouterA_TglSekian.rsc
+
+Ini mencegah memori (Flash/NAND) Mikrotik penuh akibat penumpukan file backup.
+
+E. DATA RETENTION POLICY (Pembersihan Database)
+Agar server PostgreSQL tidak membengkak ratusan Gigabyte, Backend melakukan pembersihan otomatis di akhir proses (sekitar pukul 02:00 WIB).
+
+Hapus Data Raw Kadaluarsa:
+
+DELETE FROM board_speed_stats WHERE log_time < NOW() - INTERVAL '30 days'
+
+DELETE FROM board_resource_stats WHERE log_time < NOW() - INTERVAL '30 days'
+
+DELETE FROM board_client_stats WHERE log_time < NOW() - INTERVAL '30 days'
+
+DELETE FROM hotspot_usage_raw WHERE log_date < NOW() - INTERVAL '60 days'
+
+============================================================
+AKHIR FASE 4 (SELESAI)

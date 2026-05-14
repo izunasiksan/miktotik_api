@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: mikrotik-redis-v2.4
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_v24:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: src/Dockerfile
+    container_name: mikrotik-celery-worker-v2.4
+    command: celery -A app.core.celery_app worker --loglevel=info
+    volumes:
+      - ./src:/app
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_HOST=host.docker.internal # Connect to host's Postgres
+    depends_on:
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: src/Dockerfile
+    container_name: mikrotik-celery-beat-v2.4
+    command: celery -A app.core.celery_app beat --loglevel=info
+    volumes:
+      - ./src:/app
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data_v24:
+    driver: local

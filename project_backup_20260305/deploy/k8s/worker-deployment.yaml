@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mikrotik-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mikrotik-worker
+  template:
+    metadata:
+      labels:
+        app: mikrotik-worker
+    spec:
+      containers:
+      - name: worker
+        image: mikrotik-api:latest
+        command: ["python", "-m", "app.main", "--worker"] # Assuming main.py can run worker
+        envFrom:
+        - configMapRef:
+            name: mikrotik-api-config
+        - secretRef:
+            name: mikrotik-api-secrets
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"

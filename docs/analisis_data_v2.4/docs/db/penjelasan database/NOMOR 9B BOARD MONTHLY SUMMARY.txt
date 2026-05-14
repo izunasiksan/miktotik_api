@@ -1,0 +1,290 @@
+NOMOR 9B BOARD MONTHLY SUMMARY
+Router Monthly Monitoring Aggregation
+
+Tabel board_monthly_summary menyimpan data
+ringkasan monitoring router Mikrotik dalam
+periode bulanan.
+
+Data pada tabel ini merupakan hasil agregasi
+dari data monitoring harian yang telah
+dikumpulkan sebelumnya.
+
+Ringkasan bulanan digunakan untuk analisis
+jangka panjang seperti evaluasi performa
+jaringan, tren penggunaan bandwidth,
+serta kapasitas router dalam periode
+beberapa bulan.
+
+Setiap router hanya memiliki satu data
+ringkasan untuk setiap bulan.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE board_monthly_summary (
+    summary_id           SERIAL PRIMARY KEY,
+    board_id             UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    
+    avg_download         NUMERIC(15,2) DEFAULT 0,
+    max_download         NUMERIC(15,2) DEFAULT 0,
+    total_download_bytes BIGINT DEFAULT 0,
+    
+    avg_upload           NUMERIC(15,2) DEFAULT 0,
+    max_upload           NUMERIC(15,2) DEFAULT 0,
+    total_upload_bytes   BIGINT DEFAULT 0,
+    
+    avg_cpu_load         INT DEFAULT 0,
+    max_cpu_load         INT DEFAULT 0,
+    
+    avg_hotspot_users    INT DEFAULT 0,
+    max_hotspot_users    INT DEFAULT 0,
+
+    accuracy_pct         NUMERIC(5,2) DEFAULT 100.00,
+    log_month            DATE NOT NULL,
+    created_at           TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at           TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT unique_monthly_board_sum UNIQUE(board_id, log_month)
+);
+
+CREATE INDEX idx_board_monthly_summary_lookup
+ON board_monthly_summary(board_id, log_month DESC);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+summary_id
+Tipe: SERIAL
+
+Identifier unik untuk setiap data
+ringkasan monitoring bulanan router.
+
+Nilai dihasilkan otomatis oleh database
+setiap kali proses agregasi bulanan dibuat.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan data
+ringkasan bulanan dengan router pada
+tabel mikrotik_boards.
+
+Relasi:
+
+board_monthly_summary.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari tabel
+mikrotik_boards maka seluruh data ringkasan
+bulanan yang terkait dengan router tersebut
+akan ikut terhapus.
+
+------------------------------------------------------------
+
+avg_download
+Tipe: NUMERIC(15,2)
+
+Menyimpan rata-rata kecepatan download
+traffic jaringan pada router selama
+periode satu bulan.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+max_download
+Tipe: NUMERIC(15,2)
+
+Menyimpan nilai kecepatan download
+tertinggi yang tercatat pada router
+selama periode satu bulan.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+total_download_bytes
+Tipe: BIGINT
+
+Menyimpan total jumlah data download
+yang melewati router selama satu bulan.
+
+Nilai disimpan dalam satuan bytes.
+
+------------------------------------------------------------
+
+avg_upload
+Tipe: NUMERIC(15,2)
+
+Menyimpan rata-rata kecepatan upload
+traffic jaringan pada router selama
+periode satu bulan.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+max_upload
+Tipe: NUMERIC(15,2)
+
+Menyimpan nilai kecepatan upload
+tertinggi yang tercatat pada router
+selama periode satu bulan.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+total_upload_bytes
+Tipe: BIGINT
+
+Menyimpan total jumlah data upload
+yang melewati router selama satu bulan.
+
+Nilai disimpan dalam satuan bytes.
+
+------------------------------------------------------------
+
+avg_cpu_load
+Tipe: INT
+
+Menyimpan rata-rata penggunaan CPU
+router selama satu bulan.
+
+Nilai dinyatakan dalam persentase
+dari 0 sampai 100.
+
+------------------------------------------------------------
+
+max_cpu_load
+Tipe: INT
+
+Menyimpan nilai penggunaan CPU
+tertinggi yang tercatat pada router
+selama periode satu bulan.
+
+Nilai dinyatakan dalam persentase.
+
+------------------------------------------------------------
+
+avg_hotspot_users
+Tipe: INT
+
+Menyimpan rata-rata jumlah user
+hotspot yang aktif pada router
+selama periode satu bulan.
+
+------------------------------------------------------------
+
+max_hotspot_users
+Tipe: INT
+
+Menyimpan jumlah user hotspot
+terbanyak yang tercatat aktif
+pada router selama periode satu
+bulan.
+
+------------------------------------------------------------
+
+accuracy_pct
+Tipe: NUMERIC(5,2)
+
+Menyimpan persentase tingkat
+akurasi data agregasi bulanan.
+
+Nilai default:
+100.00
+
+Kolom ini digunakan sebagai
+metadata untuk menunjukkan
+tingkat keakuratan data yang
+dihasilkan dari proses agregasi.
+
+------------------------------------------------------------
+
+log_month
+Tipe: DATE
+
+Menyimpan bulan dari data
+monitoring yang dirangkum.
+
+Nilai yang digunakan adalah
+tanggal pertama pada bulan
+tersebut.
+
+Contoh nilai:
+
+2026-03-01
+2026-04-01
+2026-05-01
+
+------------------------------------------------------------
+
+created_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika data
+ringkasan bulanan dibuat
+oleh sistem.
+
+Nilai default:
+CURRENT_TIMESTAMP
+
+------------------------------------------------------------
+
+updated_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu terakhir
+data ringkasan bulanan
+diperbarui oleh sistem.
+
+Nilai default:
+CURRENT_TIMESTAMP
+
+============================================================
+UNIQUE CONSTRAINT
+============================================================
+
+unique_monthly_board_sum
+
+Constraint ini memastikan bahwa
+setiap router hanya memiliki
+satu data ringkasan untuk
+setiap bulan.
+
+Kombinasi unik:
+
+board_id
+log_month
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_board_monthly_summary_lookup
+
+Index pada kolom:
+
+board_id
+log_month DESC
+
+Index ini digunakan untuk
+mempercepat query yang
+mengambil data ringkasan
+monitoring bulanan berdasarkan
+router dan bulan.
+
+Contoh penggunaan query:
+
+- melihat performa router per bulan
+- analisis tren penggunaan jaringan
+- membuat grafik monitoring bulanan

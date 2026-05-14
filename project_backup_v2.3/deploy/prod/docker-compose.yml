@@ -1,0 +1,44 @@
+# PRODUCTION ENVIRONMENT CONFIGURATION
+version: '3.8'
+
+services:
+  db:
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASS} # Must come from ENV
+    ports: [] # Do not expose DB in prod
+
+  api:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - LOG_LEVEL=WARNING
+      - RELOAD=false
+      - BACKEND_CORS_ORIGINS=["https://dashboard.company.com"]
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    command: ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "app.main:app", "--bind", "0.0.0.0:8000"]
+
+  worker:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - LOG_LEVEL=WARNING
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+
+  redis:
+    restart: always
+    ports: [] # Internal only

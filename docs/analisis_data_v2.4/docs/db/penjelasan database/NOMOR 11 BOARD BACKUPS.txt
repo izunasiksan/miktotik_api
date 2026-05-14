@@ -1,0 +1,225 @@
+NOMOR 11 BOARD BACKUPS
+Router Configuration Backup History
+
+Tabel board_backups menyimpan informasi
+riwayat backup konfigurasi router
+Mikrotik yang dilakukan oleh sistem.
+
+Data pada tabel ini digunakan untuk
+melacak file backup yang telah dibuat
+untuk setiap router sehingga proses
+pemulihan konfigurasi dapat dilakukan
+jika terjadi kerusakan sistem atau
+perubahan konfigurasi yang tidak
+diinginkan.
+
+Setiap record pada tabel ini
+merepresentasikan satu file backup
+yang dihasilkan dari router.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE board_backups (
+    backup_id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    board_id       UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    log_date       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    file_name      VARCHAR(255) NOT NULL,
+    router_name    VARCHAR(100),
+    router_model   VARCHAR(50),
+    file_location  TEXT NOT NULL,
+    status         VARCHAR(20) DEFAULT 'success',
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_backup_board_history
+ON board_backups(board_id, log_date DESC);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+backup_id
+Tipe: UUID
+
+Identifier unik untuk setiap file
+backup router.
+
+Nilai dihasilkan otomatis menggunakan
+fungsi:
+
+uuid_generate_v4()
+
+UUID digunakan agar setiap file
+backup memiliki identitas unik
+secara global.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan
+data backup dengan router pada
+tabel mikrotik_boards.
+
+Relasi:
+
+board_backups.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari
+tabel mikrotik_boards maka seluruh
+data backup yang terkait dengan
+router tersebut juga akan ikut
+terhapus.
+
+------------------------------------------------------------
+
+log_date
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika proses
+backup router dilakukan.
+
+Nilai default:
+
+CURRENT_TIMESTAMP
+
+Kolom ini digunakan untuk
+menunjukkan waktu historis
+pembuatan backup.
+
+Contoh nilai:
+
+2026-03-06 23:55:00+07
+
+------------------------------------------------------------
+
+file_name
+Tipe: VARCHAR(255)
+
+Menyimpan nama file backup
+yang dihasilkan dari router.
+
+Kolom ini wajib diisi karena
+setiap data backup harus
+memiliki nama file.
+
+Contoh nilai:
+
+backup-router-krangan-2026-03-06.backup
+router-config-2026-03-06.rsc
+
+------------------------------------------------------------
+
+router_name
+Tipe: VARCHAR(100)
+
+Menyimpan nama router pada
+saat backup dibuat.
+
+Informasi ini biasanya
+diambil langsung dari
+identitas router.
+
+Contoh nilai:
+
+Mikrotik-Krangan
+Core-Router-ISP
+
+------------------------------------------------------------
+
+router_model
+Tipe: VARCHAR(50)
+
+Menyimpan tipe atau model
+perangkat router yang
+dibackup.
+
+Contoh nilai:
+
+RB750Gr3
+CCR1009
+RB4011
+
+------------------------------------------------------------
+
+file_location
+Tipe: TEXT
+
+Menyimpan lokasi penyimpanan
+file backup pada sistem.
+
+Lokasi ini biasanya berupa
+path direktori pada server
+atau storage backup.
+
+Contoh nilai:
+
+/backup/mikrotik/krangan/backup-2026-03-06.backup
+/storage/router_backup/core_router_2026_03_06.rsc
+
+------------------------------------------------------------
+
+status
+Tipe: VARCHAR(20)
+
+Menyimpan status hasil
+proses backup router.
+
+Nilai default:
+
+success
+
+Contoh nilai:
+
+success
+failed
+partial
+
+Kolom ini digunakan untuk
+menandai apakah proses
+backup berhasil dilakukan
+atau mengalami kegagalan.
+
+------------------------------------------------------------
+
+created_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika
+record backup dibuat
+di dalam database.
+
+Nilai default:
+
+CURRENT_TIMESTAMP
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_backup_board_history
+
+Index pada kolom:
+
+board_id
+log_date DESC
+
+Index ini digunakan untuk
+mempercepat query yang
+mengambil riwayat backup
+berdasarkan router dan
+waktu terbaru.
+
+Contoh penggunaan query:
+
+- melihat histori backup router
+- mencari backup terbaru
+- audit proses backup perangkat

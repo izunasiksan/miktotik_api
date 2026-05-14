@@ -1,0 +1,188 @@
+Tabel yang benar-benar digunakan di test ini
+
+Script E2E kamu memang melakukan seed ke 6 tabel berikut:
+
+board_speed_stats
+board_resource_stats
+board_client_stats
+board_interface_usage
+board_pppoe_usage
+hotspot_usage_raw
+
+Bukti di kode:
+
+await db.execute(text(f"DELETE FROM board_speed_stats WHERE board_id = '{board_id}'"))
+await db.execute(text(f"DELETE FROM board_resource_stats WHERE board_id = '{board_id}'"))
+await db.execute(text(f"DELETE FROM board_client_stats WHERE board_id = '{board_id}'"))
+await db.execute(text(f"DELETE FROM board_interface_usage WHERE board_id = '{board_id}'"))
+await db.execute(text(f"DELETE FROM board_pppoe_usage WHERE board_id = '{board_id}'"))
+await db.execute(text(f"DELETE FROM hotspot_usage_raw WHERE board_id = '{board_id}'"))
+
+Dan memang di-seed juga:
+
+1️⃣ board_speed_stats
+speed_stats.append(BoardSpeedStat(
+    board_id=board_id,
+    interface_name="ether1",
+    download_mbps=dl,
+    upload_mbps=ul,
+    accuracy_pct=100.0,
+    log_time=current_time
+))
+2️⃣ board_resource_stats
+resource_stats.append(BoardResourceStat(
+    board_id=board_id,
+    cpu_load=int(cpu),
+    free_memory=int(mem_free),
+    accuracy_pct=100.0,
+    log_time=current_time
+))
+3️⃣ board_client_stats
+client_stats.append(BoardClientStat(
+    board_id=board_id,
+    total_hotspot=int(active_users * 0.4),
+    total_pppoe=int(active_users * 0.6),
+    accuracy_pct=100.0,
+    log_time=current_time
+))
+4️⃣ board_interface_usage
+
+(seeded per hari)
+
+if current_time.hour == 0 and current_time.minute == 0:
+    db.add(BoardInterfaceUsage(
+        board_id=board_id,
+        interface_name="ether1",
+        total_tx_bytes=...,
+        total_rx_bytes=...,
+        accuracy_pct=100.0,
+        log_date=log_date
+    ))
+5️⃣ board_pppoe_usage
+db.add(BoardPppoeUsage(
+    board_id=board_id,
+    pppoe_username="test_user_pppoe",
+    upload_bytes=...,
+    download_bytes=...,
+    accuracy_pct=100.0,
+    log_date=log_date
+))
+6️⃣ hotspot_usage_raw
+db.add(HotspotUsageRaw(
+    board_id=board_id,
+    username="test_user_hotspot",
+    daily_download=...,
+    daily_upload=...,
+    daily_uptime=...,
+    accuracy_pct=100.0,
+    log_date=log_date
+))
+Tapi ada hal penting ⚠️
+
+Walaupun 6 tabel di-seed, pipeline analytics kamu hanya memakai 2 tabel.
+
+Di Stage 0:
+
+run_normalization_preview()
+
+yang biasanya hanya membaca:
+
+board_speed_stats
+board_resource_stats
+
+Itu juga terlihat di debug kamu sebelumnya:
+
+rx
+tx
+cpu
+mem
+
+Tidak ada:
+
+client
+interface
+pppoe
+hotspot
+Jadi kondisi sebenarnya
+Tabel	Seed	Dipakai Analytics
+board_speed_stats	✔	✔
+board_resource_stats	✔	✔
+board_client_stats	✔	❌
+board_interface_usage	✔	❌
+board_pppoe_usage	✔	❌
+hotspot_usage_raw	✔	❌
+Artinya E2E test kamu sekarang
+
+Belum full pipeline test.
+
+Masih:
+
+Traffic analytics pipeline test
+
+belum:
+
+Network behavior analytics pipeline
+Kenapa ini penting
+
+Kalau nanti kamu ingin analisis seperti:
+
+Habit Analysis
+Jam aktif user
+PPPoE growth
+Hotspot behavior
+
+perlu:
+
+board_client_stats
+board_pppoe_usage
+hotspot_usage_raw
+Capacity Analysis
+
+perlu:
+
+board_interface_usage
+Rekomendasi arsitektur (yang biasanya dipakai)
+
+Stage 0 Normalization sebaiknya membaca:
+
+Traffic Layer
+- board_speed_stats
+- board_interface_usage
+
+Resource Layer
+- board_resource_stats
+
+User Layer
+- board_client_stats
+- board_pppoe_usage
+- hotspot_usage_raw
+
+lalu menghasilkan normalized dataset tunggal.
+
+Contoh output:
+
+period
+rx_mbps
+tx_mbps
+cpu
+memory
+active_users
+pppoe_users
+hotspot_users
+
+Baru analytics bisa jauh lebih kuat.
+
+Kesimpulan
+
+Script kamu sekarang:
+
+Seed data : 6 tabel ✔
+Analytics : 2 tabel saja
+
+jadi pipeline E2E kamu sekarang sebenarnya:
+
+Traffic + Resource analytics test
+
+belum:
+
+Full network analytics test

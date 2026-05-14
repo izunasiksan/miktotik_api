@@ -1,0 +1,323 @@
+NOMOR 8 BOARD SPEED STATS
+Router Traffic Speed Monitoring Statistics
+
+Tabel board_speed_stats menyimpan data statistik
+kecepatan traffic jaringan pada interface router
+Mikrotik.
+
+Data ini digunakan untuk memonitor kecepatan
+download dan upload yang terjadi pada setiap
+interface router pada waktu tertentu.
+
+Monitoring ini biasanya digunakan untuk melihat
+beban traffic jaringan, mendeteksi lonjakan
+penggunaan bandwidth, serta melakukan analisis
+historis performa jaringan.
+
+Tabel ini menggunakan mekanisme partition
+berdasarkan waktu untuk meningkatkan performa
+penyimpanan data monitoring traffic yang terus
+bertambah.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE board_speed_stats (
+    speed_id       BIGINT NOT NULL DEFAULT nextval('board_speed_stats_speed_id_seq'),
+    board_id       UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    interface_name VARCHAR(100) NOT NULL,
+    download_mbps  NUMERIC(15,2) DEFAULT 0,
+    upload_mbps    NUMERIC(15,2) DEFAULT 0,
+    accuracy_pct   NUMERIC(5,2) DEFAULT 100.00,
+    log_time       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (speed_id, log_time)
+) PARTITION BY RANGE (log_time);
+
+CREATE INDEX idx_speed_interface_time
+ON board_speed_stats(board_id, interface_name, log_time DESC);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+speed_id
+Tipe: BIGINT
+
+Identifier unik untuk setiap data statistik
+kecepatan traffic jaringan.
+
+Nilai dihasilkan otomatis menggunakan sequence:
+
+nextval('board_speed_stats_speed_id_seq')
+
+Kolom ini tidak menggunakan BIGSERIAL karena
+tabel menggunakan mekanisme partition sehingga
+penggunaan sequence secara eksplisit lebih
+disarankan.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan data statistik
+traffic dengan router pada tabel mikrotik_boards.
+
+Relasi:
+
+board_speed_stats.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari tabel
+mikrotik_boards maka seluruh data statistik
+traffic yang terkait dengan router tersebut
+akan ikut dihapus.
+
+------------------------------------------------------------
+
+interface_name
+Tipe: VARCHAR(100)
+
+Menyimpan nama interface pada router Mikrotik
+yang menjadi sumber data traffic.
+
+Contoh nama interface:
+
+ether1
+ether2
+sfp1
+bridge
+pppoe-out1
+
+Kolom ini wajib diisi karena setiap data
+traffic harus terhubung dengan interface
+yang dipantau.
+
+------------------------------------------------------------
+
+download_mbps
+Tipe: NUMERIC(15,2)
+
+Menyimpan kecepatan traffic download pada
+interface router.
+
+Nilai disimpan dalam satuan Mbps
+(Megabit per second).
+
+Nilai default:
+0
+
+Contoh nilai:
+12.50
+85.30
+150.75
+
+------------------------------------------------------------
+
+upload_mbps
+Tipe: NUMERIC(15,2)
+
+Menyimpan kecepatan traffic upload pada
+interface router.
+
+Nilai disimpan dalam satuan Mbps
+(Megabit per second).
+
+Nilai default:
+0
+
+Contoh nilai:
+5.20
+22.40
+70.10
+
+------------------------------------------------------------
+
+accuracy_pct
+Tipe: NUMERIC(5,2)
+
+Menyimpan persentase akurasi data monitoring
+yang dicatat oleh sistem.
+
+Nilai default:
+100.00
+
+Kolom ini digunakan sebagai metadata untuk
+menunjukkan tingkat keakuratan data yang
+dikumpulkan pada saat monitoring.
+
+Contoh nilai:
+100.00
+97.50
+89.30
+
+------------------------------------------------------------
+
+log_time
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika data statistik
+traffic jaringan dicatat oleh sistem.
+
+Nilai default:
+CURRENT_TIMESTAMP
+
+Kolom ini juga digunakan sebagai dasar
+pembagian partition tabel.
+
+Contoh nilai:
+2026-03-06 23:10:00+07
+
+============================================================
+PRIMARY KEY
+============================================================
+
+PRIMARY KEY (speed_id, log_time)
+
+Primary key menggunakan kombinasi dua kolom:
+
+speed_id
+log_time
+
+Kombinasi ini diperlukan karena tabel
+menggunakan partition berdasarkan waktu.
+
+============================================================
+PARTITIONING
+============================================================
+
+Tabel ini menggunakan metode:
+
+PARTITION BY RANGE (log_time)
+
+Artinya data akan dibagi ke dalam beberapa
+partisi berdasarkan rentang waktu pada
+kolom log_time.
+
+Partition digunakan untuk meningkatkan
+performa penyimpanan dan query pada data
+monitoring traffic jaringan yang terus
+bertambah.
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_speed_interface_time
+
+Index pada kolom:
+
+board_id
+interface_name
+log_time DESC
+
+Index ini digunakan untuk mempercepat query
+monitoring traffic berdasarkan router,
+interface, dan waktu terbaru.
+
+Contoh penggunaan query:
+
+- melihat histori kecepatan traffic interface
+- membuat grafik penggunaan bandwidth
+- analisis beban jaringan per interface
+
+============================================================
+NOMOR 8A CATATAN PENTING SATUAN TRAFFIC (BPS vs Mbps)
+============================================================
+
+Router Mikrotik mengirim data traffic melalui
+Mikrotik API menggunakan satuan:
+
+bps (bits per second)
+
+Contoh nilai dari API:
+
+12500000
+45000000
+98000000
+
+Nilai tersebut bukan Mbps melainkan jumlah
+bit per detik.
+
+Namun pada tabel board_speed_stats nilai
+disimpan dalam satuan:
+
+Mbps (Megabit per second)
+
+Tujuan penggunaan Mbps adalah agar nilai
+traffic lebih mudah dibaca dan digunakan
+untuk analisis monitoring jaringan.
+
+============================================================
+KONVERSI NILAI
+============================================================
+
+Backend harus melakukan konversi nilai
+dari bps ke Mbps sebelum menyimpan data
+ke dalam database.
+
+Rumus konversi:
+
+Mbps = bps / 1,000,000
+
+Contoh:
+
+12500000 bps
+→ 12.50 Mbps
+
+45000000 bps
+→ 45.00 Mbps
+
+98000000 bps
+→ 98.00 Mbps
+
+============================================================
+CATATAN IMPLEMENTASI BACKEND
+============================================================
+
+Backend tidak boleh menyimpan nilai
+bps langsung ke kolom:
+
+download_mbps
+upload_mbps
+
+Karena kolom tersebut menggunakan satuan
+Mbps.
+
+Jika nilai bps disimpan tanpa konversi
+maka data traffic akan menjadi salah
+dan menyebabkan kesalahan analisis
+monitoring jaringan.
+
+============================================================
+ALUR DATA YANG BENAR
+============================================================
+
+1. Backend mengambil data traffic
+   dari Mikrotik API (dalam bps)
+
+2. Backend melakukan konversi:
+
+   bps → Mbps
+
+3. Nilai Mbps yang sudah dikonversi
+   disimpan ke database
+
+============================================================
+CONTOH DATA YANG DISIMPAN
+============================================================
+
+API Mikrotik:
+
+rx-bits-per-second = 45000000
+tx-bits-per-second = 12000000
+
+Setelah konversi:
+
+download_mbps = 45.00
+upload_mbps   = 12.00

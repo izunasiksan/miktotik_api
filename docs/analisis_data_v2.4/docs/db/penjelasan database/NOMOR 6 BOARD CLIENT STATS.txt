@@ -1,0 +1,200 @@
+NOMOR 6 BOARD CLIENT STATS
+Router Client Monitoring Statistics
+
+Tabel board_client_stats menyimpan data statistik jumlah
+client yang terhubung pada router Mikrotik.
+
+Data ini digunakan untuk monitoring jumlah pengguna
+pada router seperti user hotspot dan user PPPoE
+pada waktu tertentu.
+
+Tabel ini menggunakan mekanisme partition berdasarkan
+waktu untuk meningkatkan performa penyimpanan data
+monitoring historis yang terus bertambah.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE board_client_stats (
+    stat_id       BIGINT NOT NULL DEFAULT nextval('board_client_stats_stat_id_seq'),
+    board_id      UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    total_hotspot INT DEFAULT 0,
+    total_pppoe   INT DEFAULT 0,
+    total_active  INT GENERATED ALWAYS AS (total_hotspot + total_pppoe) STORED,
+    accuracy_pct  NUMERIC(5,2) DEFAULT 100.00,
+    log_time      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (stat_id, log_time)
+) PARTITION BY RANGE (log_time);
+
+CREATE INDEX idx_client_stats_time
+ON board_client_stats(board_id, log_time DESC);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+stat_id
+Tipe: BIGINT
+
+Identifier unik untuk setiap data statistik client.
+
+Nilai dihasilkan otomatis menggunakan sequence:
+
+nextval('board_client_stats_stat_id_seq')
+
+Kolom ini tidak menggunakan BIGSERIAL karena tabel
+menggunakan mekanisme partition sehingga penggunaan
+sequence secara eksplisit lebih disarankan.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan data statistik client
+dengan router pada tabel mikrotik_boards.
+
+Relasi:
+
+board_client_stats.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari tabel mikrotik_boards,
+maka seluruh data statistik client yang terkait dengan
+router tersebut juga akan ikut dihapus.
+
+------------------------------------------------------------
+
+total_hotspot
+Tipe: INT
+
+Menyimpan jumlah user hotspot yang aktif
+pada router saat data statistik dicatat.
+
+Nilai default:
+0
+
+Data ini biasanya diambil dari daftar
+active hotspot session pada router.
+
+------------------------------------------------------------
+
+total_pppoe
+Tipe: INT
+
+Menyimpan jumlah user PPPoE yang aktif
+pada router saat data statistik dicatat.
+
+Nilai default:
+0
+
+Data ini biasanya diambil dari daftar
+active PPPoE session pada router.
+
+------------------------------------------------------------
+
+total_active
+Tipe: INT (Generated Column)
+
+Menyimpan total client aktif pada router.
+
+Nilai dihitung otomatis oleh database
+menggunakan rumus:
+
+total_hotspot + total_pppoe
+
+Kolom ini tidak dapat diisi secara manual
+karena nilainya dihasilkan oleh database.
+
+------------------------------------------------------------
+
+accuracy_pct
+Tipe: NUMERIC(5,2)
+
+Menyimpan persentase akurasi data monitoring
+yang dicatat oleh sistem.
+
+Nilai default:
+100.00
+
+Kolom ini digunakan sebagai metadata untuk
+menunjukkan tingkat keakuratan data yang
+dikumpulkan pada saat monitoring.
+
+Contoh nilai:
+100.00
+95.50
+87.25
+
+------------------------------------------------------------
+
+log_time
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika data statistik client
+dicatat oleh sistem monitoring.
+
+Nilai default:
+CURRENT_TIMESTAMP
+
+Kolom ini juga digunakan sebagai dasar
+pembagian partition tabel.
+
+Contoh nilai:
+2026-03-06 22:45:00+07
+
+============================================================
+PRIMARY KEY
+============================================================
+
+PRIMARY KEY (stat_id, log_time)
+
+Primary key menggunakan kombinasi dua kolom:
+
+stat_id
+log_time
+
+Kombinasi ini diperlukan karena tabel
+menggunakan partition berdasarkan waktu.
+
+============================================================
+PARTITIONING
+============================================================
+
+Tabel ini menggunakan metode:
+
+PARTITION BY RANGE (log_time)
+
+Artinya data akan dibagi ke dalam beberapa
+partisi berdasarkan rentang waktu pada
+kolom log_time.
+
+Partition digunakan untuk meningkatkan
+performa penyimpanan dan query pada data
+monitoring yang terus bertambah.
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_client_stats_time
+
+Index pada kolom:
+
+board_id
+log_time DESC
+
+Index ini digunakan untuk mempercepat query
+monitoring yang mengambil data statistik
+berdasarkan router dan waktu terbaru.
+
+Contoh penggunaan query:
+
+- melihat histori jumlah client pada router
+- membuat grafik jumlah pengguna
+- analisis beban router berdasarkan waktu

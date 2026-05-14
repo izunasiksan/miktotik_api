@@ -1,0 +1,210 @@
+NOMOR 13 INTERFACE CONFIGURATIONS
+Router Interface Configuration Mapping
+
+Tabel board_interface_configs menyimpan
+konfigurasi dan metadata untuk setiap
+interface pada router Mikrotik yang
+dikelola oleh sistem monitoring.
+
+Tabel ini digunakan untuk menyimpan
+informasi tambahan mengenai interface
+router seperti nama label interface,
+status aktif, serta penandaan interface
+yang berfungsi sebagai uplink utama.
+
+Data pada tabel ini membantu sistem
+monitoring dalam mengidentifikasi
+interface yang relevan untuk analisis
+traffic jaringan dan monitoring performa.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE board_interface_configs (
+    config_id         SERIAL PRIMARY KEY,
+    board_id          UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    interface_name    VARCHAR(100) NOT NULL,
+    interface_label   VARCHAR(100),
+    is_active         BOOLEAN DEFAULT TRUE,
+    is_primary_uplink BOOLEAN DEFAULT FALSE,
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_board_port UNIQUE(board_id, interface_name)
+);
+
+CREATE INDEX idx_active_interfaces
+ON board_interface_configs(board_id)
+WHERE is_active = TRUE;
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+config_id
+Tipe: SERIAL
+
+Identifier unik untuk setiap
+konfigurasi interface router.
+
+Nilai dihasilkan otomatis oleh
+database setiap kali konfigurasi
+interface baru dibuat.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan
+konfigurasi interface dengan
+router pada tabel mikrotik_boards.
+
+Relasi:
+
+board_interface_configs.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari
+tabel mikrotik_boards maka seluruh
+konfigurasi interface yang terkait
+dengan router tersebut juga akan
+ikut terhapus.
+
+------------------------------------------------------------
+
+interface_name
+Tipe: VARCHAR(100)
+
+Menyimpan nama interface asli
+pada router Mikrotik.
+
+Kolom ini wajib diisi karena
+digunakan sebagai identitas
+utama interface.
+
+Contoh nilai:
+
+ether1
+ether2
+sfp1
+bridge
+pppoe-out1
+
+------------------------------------------------------------
+
+interface_label
+Tipe: VARCHAR(100)
+
+Menyimpan label atau nama
+tambahan untuk interface.
+
+Label ini biasanya digunakan
+untuk memberikan deskripsi
+fungsi interface dalam
+topologi jaringan.
+
+Contoh nilai:
+
+ISP-A-Uplink
+Client-Network
+Management-Port
+Core-Backbone
+
+------------------------------------------------------------
+
+is_active
+Tipe: BOOLEAN
+
+Menunjukkan apakah interface
+tersebut aktif digunakan oleh
+sistem monitoring.
+
+Nilai default:
+
+TRUE
+
+Jika bernilai FALSE maka
+interface tersebut tidak akan
+dipertimbangkan dalam proses
+monitoring atau analisis
+traffic jaringan.
+
+------------------------------------------------------------
+
+is_primary_uplink
+Tipe: BOOLEAN
+
+Menunjukkan apakah interface
+tersebut merupakan uplink utama
+router menuju jaringan luar
+atau internet.
+
+Nilai default:
+
+FALSE
+
+Penandaan ini digunakan untuk
+membantu sistem dalam
+mengidentifikasi jalur utama
+koneksi jaringan.
+
+------------------------------------------------------------
+
+created_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika
+konfigurasi interface dibuat
+dalam database.
+
+Nilai default:
+
+CURRENT_TIMESTAMP
+
+============================================================
+UNIQUE CONSTRAINT
+============================================================
+
+unique_board_port
+
+Constraint ini memastikan bahwa
+setiap interface pada router
+tidak dapat didaftarkan lebih
+dari satu kali.
+
+Kombinasi unik:
+
+board_id
+interface_name
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_active_interfaces
+
+Index ini digunakan untuk
+mempercepat query yang mengambil
+daftar interface aktif pada
+router.
+
+Index hanya berlaku untuk
+record dengan kondisi:
+
+is_active = TRUE
+
+Contoh penggunaan query:
+
+- mengambil daftar interface
+  aktif untuk monitoring
+
+- menentukan interface yang
+  digunakan untuk analisis
+  traffic jaringan
+
+- identifikasi uplink utama
+  pada router

@@ -1,0 +1,139 @@
+================================================================
+DOKUMEN TEKNIS: ALUR KERJA FRONTEND (FULL STACK GUIDE)
+Project: Mikrotik Management System
+Target: Single Page Application (SPA) yang Responsif & Cepat
+Stack: React 18 (Vite) + Tailwind CSS + Axios
+================================================================
+
+FASE 1: PERSIAPAN LINGKUNGAN KERJA (SETUP)
+----------------------------------------------------------------
+Langkah ini bertujuan membangun pondasi frontend yang modern, cepat, dan terstruktur. Kita menggunakan Vite sebagai build tool pengganti Create-React-App karena performanya yang jauh lebih unggul.
+
+1. INSTALASI PROJECT (Vite)
+   Perintah: npm create vite@latest frontend -- --template react
+   (Pilih opsi: React, JavaScript/TypeScript sesuai preferensi tim)
+
+2. INSTALASI DEPENDENSI UTAMA
+   Wajib menginstal library berikut untuk menunjang fungsionalitas:
+   - npm install axios           (HTTP Client untuk koneksi ke Backend)
+   - npm install react-router-dom (Navigasi halaman SPA)
+   - npm install react-icons     (Ikon standar yang ringan)
+   - npm install react-hot-toast (Notifikasi Toast yang elegan)
+   - npm install tailwindcss postcss autoprefixer (Styling Framework)
+   - npm install clsx tailwind-merge (Utilitas penggabungan class CSS dinamis)
+
+3. KONFIGURASI TAILWIND CSS
+   - Jalankan: npx tailwindcss init -p
+   - Edit `tailwind.config.js`:
+     content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+   - Masukkan directive Tailwind di `src/index.css`:
+     @tailwind base;
+     @tailwind components;
+     @tailwind utilities;
+
+4. STRUKTUR FOLDER (BEST PRACTICE)
+   src/
+   ├── assets/          # Gambar, Logo, Font statis
+   ├── components/      # Komponen UI Reusable (Tombol, Card, Modal)
+   │   ├── ui/          # Komponen Atomik (Button.jsx, Input.jsx)
+   │   └── layout/      # Komponen Tata Letak (Sidebar.jsx, Navbar.jsx)
+   ├── context/         # Global State (AuthContext.jsx)
+   ├── hooks/           # Custom Hooks (useAuth.js, useFetch.js)
+   ├── pages/           # Halaman Utama (Dashboard.jsx, Login.jsx)
+   ├── services/        # Logika API (api.js, authService.js)
+   ├── utils/           # Fungsi Bantuan (formatter.js, validator.js)
+   └── App.jsx          # Routing Utama
+
+================================================================
+
+FASE 2: INTEGRASI API & OTENTIKASI (CORE LOGIC)
+----------------------------------------------------------------
+Fase ini menghubungkan Frontend dengan Backend Python yang sudah ada. Keamanan token adalah prioritas utama.
+
+1. CONFIG AXIOS (src/services/api.js)
+   - Buat instance axios dengan `baseURL` dari .env (VITE_API_URL).
+   - Pasang Interceptor Request: Otomatis menyisipkan `Authorization: Bearer <token>` di setiap request.
+   - Pasang Interceptor Response:
+     - Jika 401 Unauthorized: Otomatis logout user dan redirect ke /login.
+     - Jika 403 Forbidden: Tampilkan pesan "Akses Ditolak".
+
+2. AUTHENTICATION CONTEXT (src/context/AuthContext.jsx)
+   - Mengelola state global: `user`, `token`, `isLoading`, `isAuthenticated`.
+   - Fungsi `login(username, password)`:
+     - Panggil API /login.
+     - Simpan Token di localStorage (atau HttpOnly Cookie jika memungkinkan).
+     - Set state user.
+   - Fungsi `logout()`:
+     - Hapus Token dari storage.
+     - Redirect ke halaman Login.
+
+3. PROTECTED ROUTE (src/components/ProtectedRoute.jsx)
+   - Wrapper component yang mengecek apakah user sudah login.
+   - Jika belum login, lempar ke halaman /login.
+   - Jika sudah login, render halaman tujuan (Outlet).
+
+================================================================
+
+FASE 3: PENGEMBANGAN ANTARMUKA PENGGUNA (UI/UX)
+----------------------------------------------------------------
+Fokus pada kenyamanan pengguna (HCI) sesuai aturan ketat proyek.
+
+1. LAYOUT UTAMA (DASHBOARD SHELL)
+   - Sidebar: Menu navigasi (Dashboard, Router List, Logs, Users).
+   - Navbar: Profil user, Tombol Logout, Status Koneksi Backend.
+   - Content Area: Area dinamis tempat halaman dirender.
+
+2. KOMPONEN WAJIB (REUSABLE)
+   - <LoadingSpinner />: Muncul saat data sedang diambil (Fetching).
+   - <ConfirmModal />: Muncul saat user menekan tombol Hapus/Reset.
+     "Apakah Anda yakin ingin menghapus router ini?" [Ya] [Batal]
+   - <StatusBadge />: Indikator warna (Hijau=Online, Merah=Offline, Kuning=Maintenance).
+
+3. HALAMAN DASHBOARD (src/pages/Dashboard.jsx)
+   - Menampilkan Widget Ringkasan (Card):
+     - Total Router Online/Offline.
+     - Total Traffic Hari Ini (GB).
+     - Jumlah User Aktif.
+   - Grafik Tren Trafik (Opsional: Menggunakan Recharts/Chart.js).
+
+================================================================
+
+FASE 4: MANAJEMEN DATA ROUTER (CRUD)
+----------------------------------------------------------------
+Implementasi fitur inti manajemen Mikrotik.
+
+1. HALAMAN LIST ROUTER (src/pages/RouterList.jsx)
+   - Tabel Data Router: Nama, IP, Model, Status, Aksi.
+   - Fitur Pencarian & Filter (Berdasarkan Site/Status).
+   - Tombol "Tambah Router" (Membuka Modal Form).
+
+2. FORM TAMBAH/EDIT ROUTER
+   - Validasi Input: IP Address valid? Port valid?
+   - Input Kredensial: Username/Password Mikrotik (dikirim via HTTPS).
+   - Opsi: Enable Monitoring? Enable VPN?
+
+3. HALAMAN DETAIL ROUTER (src/pages/RouterDetail.jsx)
+   - Menampilkan status Real-time (Resource Usage: CPU, RAM).
+   - Menampilkan Log Event terakhir dari router tersebut.
+   - Tombol Aksi Cepat: "Reboot Router", "Ping Check", "Sync Usage".
+
+================================================================
+
+FASE 5: MONITORING REAL-TIME & NOTIFIKASI
+----------------------------------------------------------------
+Membuat aplikasi terasa hidup dan responsif.
+
+1. AUTO-REFRESH MECHANISM
+   - Gunakan `setInterval` atau `React Query` dengan `refetchInterval`.
+   - Halaman Dashboard refresh tiap 60 detik.
+   - Halaman Detail Router refresh tiap 10 detik (Resource Usage).
+
+2. GLOBAL TOAST NOTIFICATION
+   - Integrasi `react-hot-toast` di root aplikasi.
+   - Sukses: "Data router berhasil disimpan!" (Hijau).
+   - Error: "Gagal koneksi ke router! (Timeout)" (Merah).
+   - Info: "Sinkronisasi data sedang berjalan..." (Biru).
+
+================================================================
+AKHIR DOKUMEN ALUR KERJA FRONTEND
+================================================================

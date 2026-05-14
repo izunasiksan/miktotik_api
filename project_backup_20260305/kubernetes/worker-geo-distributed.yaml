@@ -1,0 +1,66 @@
+# Geo-Distributed Workers (Example for Asia Region)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mikrotik-worker-asia
+  labels:
+    app: mikrotik-worker
+    region: asia
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mikrotik-worker
+      region: asia
+  template:
+    metadata:
+      labels:
+        app: mikrotik-worker
+        region: asia
+    spec:
+      nodeSelector:
+        topology.kubernetes.io/region: asia-southeast1
+      containers:
+      - name: mikrotik-worker
+        image: mikrotik-api:latest
+        command: ["python", "app/worker.py"]
+        env:
+        - name: WORKER_REGION
+          value: "asia"
+        - name: BROKER_URL
+          value: "amqp://user:pass@rabbitmq.asia.svc:5672//"
+        resources:
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+---
+# Geo-Distributed Workers (Example for US Region)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mikrotik-worker-us
+  labels:
+    app: mikrotik-worker
+    region: us
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mikrotik-worker
+      region: us
+  template:
+    metadata:
+      labels:
+        app: mikrotik-worker
+        region: us
+    spec:
+      nodeSelector:
+        topology.kubernetes.io/region: us-central1
+      containers:
+      - name: mikrotik-worker
+        image: mikrotik-api:latest
+        env:
+        - name: WORKER_REGION
+          value: "us"
+        - name: BROKER_URL
+          value: "amqp://user:pass@rabbitmq.us.svc:5672//"

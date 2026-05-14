@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # Redis: Backend caching & session management (V2.4 Strategy)
+  redis-v24:
+    image: redis:7-alpine
+    restart: always
+    container_name: mikrotik-redis-v24
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-mikrotik_api_v24}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data_v24:/data
+    networks:
+      - mikrotik_net_v24
+
+volumes:
+  redis_data_v24:
+
+networks:
+  mikrotik_net_v24:
+    driver: bridge

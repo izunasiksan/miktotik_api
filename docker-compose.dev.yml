@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  # Redis: Digunakan sebagai backend caching & task queuing (V2.4 Strategy)
+  redis:
+    image: redis:7-alpine
+    restart: always
+    container_name: mikrotik-redis-dev
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Gunakan ini untuk menjalankan Redis saja selama proses pengembangan aplikasi secara native (localhost)
+# Jalankan dengan: docker-compose -f docker-compose.dev.yml up -d

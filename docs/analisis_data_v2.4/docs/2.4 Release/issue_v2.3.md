@@ -1,0 +1,4 @@
+karena ada issue analisis data v2.3 dengan informasi layanan analisis data tidak disajikan dengan baik, data tidak filtering terlalu sulit bagi UI (karena banyak error) dan tidak dapat berfungsi sebagai mana mestinya, pada proses filtering banyak error/fault, meskipun secara dokumentasi sudah sangat baik, dan teknologi yang digunakan sudah sesuai dengan ketentuan, maka dari itu akan dilakukan update v2.4 untuk memperbaiki masalah tersebut.
+dalam kasus ini akan dilakukan mitigasi, perbaikan dan analisis secara mendalam agar layanan bisa layak digunakan
+
+asumsi kesalahan v2.3 adalah di relevansi data yang diambil atau pengambilan data tidak sesuai logic yang mengakibatkan informasi yang tidak akurat

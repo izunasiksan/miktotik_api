@@ -1,0 +1,281 @@
+-- ============================================================
+-- NOMOR 15: PPPOE USER USAGE (PENJELASAN & ATURAN)
+-- ============================================================
+CREATE TABLE board_pppoe_usage (
+    usage_id       BIGINT NOT NULL DEFAULT nextval('board_pppoe_usage_usage_id_seq'), -- Changed from BIGSERIAL
+    board_id       UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    pppoe_username VARCHAR(100) NOT NULL,
+    upload_bytes   BIGINT DEFAULT 0,
+    download_bytes BIGINT DEFAULT 0,
+    accuracy_pct   NUMERIC(5,2) DEFAULT 100.00,
+    log_date       DATE DEFAULT CURRENT_DATE,
+    last_update    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (usage_id, log_date)
+) PARTITION BY RANGE (log_date);
+CREATE INDEX idx_pppoe_usage_board_time ON board_pppoe_usage(board_id, log_date DESC);
+CREATE INDEX idx_pppoe_usage_lookup ON board_pppoe_usage(board_id, pppoe_username, log_date DESC);
+
+
+Tujuan:
+Menyimpan akumulasi penggunaan trafik setiap user PPPoE
+per hari untuk kebutuhan:
+
+- analisis konsumsi bandwidth pelanggan
+- laporan penggunaan internet
+- deteksi anomali trafik user
+- analisis kebiasaan penggunaan jaringan
+
+Tabel ini menyimpan HISTORICAL USAGE, bukan realtime traffic.
+
+------------------------------------------------------------
+Sumber Data
+------------------------------------------------------------
+
+Data diambil dari MikroTik API.
+
+Endpoint yang digunakan:
+
+/ppp/active/print
+/ppp/secret/print
+/interface/monitor-traffic
+/ppp/active/get
+
+Field utama yang digunakan:
+
+- name (pppoe username)
+- bytes-in
+- bytes-out
+
+bytes-in  → download user
+bytes-out → upload user
+
+Nilai tersebut merupakan COUNTER kumulatif sejak session aktif.
+
+------------------------------------------------------------
+Aturan Penyimpanan Data
+------------------------------------------------------------
+
+1. Format Penyimpanan
+
+Semua trafik disimpan menggunakan satuan dasar:
+
+BYTE
+
+Kolom:
+
+upload_bytes
+download_bytes
+
+Tipe data:
+
+BIGINT
+
+Tujuan:
+
+- menjaga akurasi data
+- menghindari rounding error
+- mempermudah perhitungan historis
+
+------------------------------------------------------------
+
+2. Metode Perhitungan Usage
+
+Penggunaan bandwidth dihitung menggunakan metode:
+
+DELTA COUNTER
+
+Rumus:
+
+usage = counter_sekarang - counter_sebelumnya
+
+Contoh:
+
+counter sebelumnya
+bytes-out = 5,000,000
+
+counter sekarang
+bytes-out = 5,800,000
+
+upload usage = 800,000 bytes
+
+------------------------------------------------------------
+
+3. Reset Counter Handling
+
+Counter PPPoE dapat reset karena:
+
+- user reconnect
+- router reboot
+- session restart
+
+Jika kondisi berikut terjadi:
+
+counter_sekarang < counter_sebelumnya
+
+maka dianggap terjadi reset session.
+
+Perhitungan menjadi:
+
+usage = counter_sekarang
+
+------------------------------------------------------------
+
+4. Akumulasi Harian
+
+Setiap polling sistem akan menambahkan usage ke total harian.
+
+upload_bytes
+download_bytes
+
+ditambahkan hingga pergantian tanggal (log_date).
+
+------------------------------------------------------------
+
+5. Identifikasi User
+
+User PPPoE diidentifikasi menggunakan:
+
+board_id
+pppoe_username
+
+Tujuan:
+
+- memastikan user unik pada router tertentu
+- memudahkan pencarian histori trafik user
+
+Contoh:
+
+board_id = router_A
+pppoe_username = pelanggan_001
+
+------------------------------------------------------------
+
+6. Akurasi Data
+
+Kolom:
+
+accuracy_pct
+
+digunakan untuk menandai tingkat kelengkapan polling data.
+
+Interpretasi:
+
+100.00 = data lengkap
+80.00 - 99.99 = sebagian polling hilang
+< 80.00 = data tidak lengkap
+
+------------------------------------------------------------
+
+7. Rotasi Data (Partition)
+
+Tabel menggunakan:
+
+PARTITION BY RANGE (log_date)
+
+Tujuan:
+
+- meningkatkan performa query historis
+- mempermudah pengelolaan data besar
+- memudahkan arsip data lama
+
+Contoh partition:
+
+board_pppoe_usage_2026_03
+board_pppoe_usage_2026_04
+
+------------------------------------------------------------
+
+
+
+-- ============================================================
+-- NOMOR 15B: CATATAN SATUAN TRAFIK USER
+-- ============================================================
+
+Backend Rule:
+
+Semua data trafik user HARUS menggunakan satuan dasar:
+
+BYTE
+
+Backend TIDAK BOLEH menggunakan satuan:
+
+KB
+MB
+GB
+Mbps
+
+Tujuan:
+
+- menjaga konsistensi sistem
+- menghindari kesalahan konversi
+- menjaga akurasi analisis data historis
+
+------------------------------------------------------------
+
+Frontend Display Rule:
+
+Frontend diperbolehkan menampilkan satuan yang lebih mudah dibaca:
+
+KB
+MB
+GB
+TB
+
+Contoh:
+
+150000000 bytes
+ditampilkan menjadi
+143.05 MB
+
+------------------------------------------------------------
+
+Jika ingin menampilkan SPEED user (Mbps),
+maka harus dihitung dari selisih waktu polling.
+
+Rumus:
+
+Mbps = (bytes_per_second * 8) / 1000000
+
+------------------------------------------------------------
+
+
+
+-- ============================================================
+-- NOMOR 15C: TUJUAN ANALISIS DATA PPPOE
+-- ============================================================
+
+Data pada tabel ini digunakan untuk:
+
+1. Analisis penggunaan bandwidth pelanggan
+
+Mengetahui user dengan konsumsi bandwidth terbesar.
+
+------------------------------------------------------------
+
+2. Deteksi anomali trafik
+
+Contoh:
+
+- lonjakan upload tiba-tiba
+- trafik download tidak normal
+- kemungkinan malware atau torrent abuse
+
+------------------------------------------------------------
+
+3. Analisis kebiasaan penggunaan
+
+Contoh:
+
+- jam sibuk penggunaan internet
+- pola penggunaan harian pelanggan
+- pola penggunaan bulanan pelanggan
+
+------------------------------------------------------------
+
+4. Statistik penggunaan jaringan
+
+Contoh laporan:
+
+- top 10 user bandwidth terbesar
+- total penggunaan bandwidth jaringan
+- distribusi penggunaan user

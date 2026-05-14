@@ -1,0 +1,72 @@
+# PostgreSQL High Availability with Patroni (Spilo)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-ha
+  labels:
+    app: postgres-ha
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: postgres-ha
+    role: master
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-ha-replica
+  labels:
+    app: postgres-ha
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: postgres-ha
+    role: replica
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-ha
+spec:
+  serviceName: "postgres-ha"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: postgres-ha
+  template:
+    metadata:
+      labels:
+        app: postgres-ha
+    spec:
+      serviceAccountName: postgres-pod
+      containers:
+      - name: postgres
+        image: registry.opensource.zalan.do/acid/spilo-15:2.1-p6
+        env:
+          - name: SCOPE
+            value: "mikrotik-cluster"
+          - name: PG_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mikrotik-secrets
+                key: POSTGRES_PASSWORD
+          - name: ETCD_HOST
+            value: "etcd-cluster"
+        ports:
+        - containerPort: 5432
+        - containerPort: 8008
+        volumeMounts:
+        - name: pgdata
+          mountPath: /home/postgres/pgdata
+  volumeClaimTemplates:
+  - metadata:
+      name: pgdata
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi

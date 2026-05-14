@@ -1,0 +1,33 @@
+# BACKUP MANIFEST: MIKROTIK_API V2.3
+====================================
+Tanggal Backup: 2026-03-06 17:31
+Versi Proyek: 2.3 (Standardized)
+Lokasi Backup: e:\mikrotik_api\project_backup_v2.3
+
+## Ringkasan Perubahan V2.3:
+1. Standardisasi Naming Convention (camelCase API, snake_case DB).
+2. Implementasi ISO 8601 Datetime Precision.
+3. Perbaikan Infrastruktur (Redis & Scheduler enabled).
+4. Perbaikan Docker Backend & Alembic Sync (b6b1f9745450).
+5. Update Dokumentasi Analisis Data V2.3.
+
+## Isi Backup:
+- /backend (Source code, Alembic migrations, Tests)
+- /frontend (React source code, Zustand stores, Components)
+- /docs (Seluruh dokumen analisis v2.3)
+- /docker-compose.yml & Dockerfiles
+- .env (Konfigurasi lingkungan)
+
+## Pengecualian (Tidak Dicadangkan):
+- .venv/
+- node_modules/
+- .git/
+- .next/ / .cache/
+- *.pyc, *.log
+
+## Statistik:
+- Total Files/Folders: 3215
+- Status: INTEGRITY VERIFIED
+
+---
+Backup ini dibuat sebagai checkpoint stabil setelah implementasi standarisasi V2.3.

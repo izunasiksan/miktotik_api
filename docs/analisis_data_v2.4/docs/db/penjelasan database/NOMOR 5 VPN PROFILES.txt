@@ -1,0 +1,210 @@
+NOMOR 5 VPN PROFILES
+Router Remote Access Configuration
+
+Tabel vpn_profiles menyimpan informasi konfigurasi VPN
+yang digunakan oleh sistem untuk mengakses router Mikrotik
+melalui jaringan VPN.
+
+VPN digunakan ketika router tidak dapat diakses langsung
+melalui jaringan publik atau jaringan lokal sistem.
+
+Alamat akses router pada tabel ini dapat berupa
+IP address atau VPN DNS (hostname) yang tersedia
+di jaringan VPN.
+
+Setiap profil VPN dikaitkan dengan satu router yang
+terdaftar pada tabel mikrotik_boards.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE vpn_profiles (
+    vpn_id SERIAL PRIMARY KEY,
+    board_id UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    
+    vpn_type VARCHAR(20) DEFAULT 'L2TP/IPSEC',
+    vpn_api VARCHAR(255),
+    vpn_username VARCHAR(50),
+    vpn_password_encrypted TEXT,
+    
+    vpn_ssh VARCHAR(255),
+    vpn_ftp VARCHAR(255),
+    vpn_winbox VARCHAR(255),
+    
+    is_connected BOOLEAN DEFAULT FALSE,
+    last_connected_at TIMESTAMP WITH TIME ZONE
+);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+vpn_id
+Tipe: SERIAL
+
+Primary key untuk setiap konfigurasi VPN.
+
+Nilai akan bertambah otomatis setiap kali data
+profil VPN baru dimasukkan ke dalam tabel.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan profil VPN dengan
+router pada tabel mikrotik_boards.
+
+Relasi:
+
+vpn_profiles.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari tabel mikrotik_boards,
+maka profil VPN yang terkait dengan router tersebut
+akan ikut dihapus secara otomatis.
+
+------------------------------------------------------------
+
+vpn_type
+Tipe: VARCHAR(20)
+
+Menentukan jenis protokol VPN yang digunakan
+untuk koneksi ke router.
+
+Nilai default:
+L2TP/IPSEC
+
+Kolom ini digunakan sebagai informasi tipe
+koneksi VPN yang digunakan oleh sistem.
+
+------------------------------------------------------------
+
+vpn_api
+Tipe: VARCHAR(255)
+
+Menyimpan alamat endpoint API router
+yang diakses melalui VPN.
+
+Alamat dapat berupa IP address atau VPN DNS
+yang tersedia di jaringan VPN.
+
+Contoh:
+10.10.10.1:8728
+router-bekasi.vpn.local:8728
+
+------------------------------------------------------------
+
+vpn_username
+Tipe: VARCHAR(50)
+
+Username yang digunakan untuk autentikasi
+koneksi VPN.
+
+Kolom ini menyimpan username yang diperlukan
+untuk membangun koneksi VPN dari sistem.
+
+------------------------------------------------------------
+
+vpn_password_encrypted
+Tipe: TEXT
+
+Menyimpan password VPN yang sudah dienkripsi.
+
+Password tidak disimpan dalam bentuk teks asli.
+Data yang disimpan merupakan hasil enkripsi
+untuk menjaga keamanan kredensial VPN.
+
+------------------------------------------------------------
+
+vpn_ssh
+Tipe: VARCHAR(255)
+
+Alamat akses SSH router melalui jaringan VPN.
+
+Alamat dapat berupa IP address atau VPN DNS.
+
+Contoh:
+10.10.10.1:22
+router-bekasi.vpn.local:22
+
+Digunakan ketika sistem perlu mengakses router
+menggunakan SSH melalui koneksi VPN.
+
+------------------------------------------------------------
+
+vpn_ftp
+Tipe: VARCHAR(255)
+
+Alamat akses FTP router melalui VPN.
+
+Alamat dapat berupa IP address atau VPN DNS.
+
+Contoh:
+10.10.10.1:21
+router-bekasi.vpn.local:21
+
+Digunakan ketika sistem melakukan transfer file
+seperti backup konfigurasi router melalui VPN.
+
+------------------------------------------------------------
+
+vpn_winbox
+Tipe: VARCHAR(255)
+
+Alamat akses Winbox router melalui VPN.
+
+Alamat dapat berupa IP address atau VPN DNS.
+
+Contoh:
+10.10.10.1:8291
+router-bekasi.vpn.local:8291
+
+Digunakan untuk koneksi Winbox melalui VPN.
+
+------------------------------------------------------------
+
+is_connected
+Tipe: BOOLEAN
+
+Menunjukkan status koneksi VPN antara sistem
+dan router.
+
+TRUE  : VPN sedang terhubung
+FALSE : VPN tidak terhubung
+
+Kolom ini dapat diperbarui oleh sistem setelah
+proses pengecekan koneksi VPN.
+
+------------------------------------------------------------
+
+last_connected_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu terakhir koneksi VPN berhasil
+terhubung dengan router.
+
+Kolom ini digunakan untuk mengetahui kapan
+terakhir kali sistem berhasil membangun
+koneksi VPN ke router.
+
+Contoh nilai:
+2026-03-06 22:10:00+07
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_vpn_profiles_board_id
+
+Index pada kolom:
+board_id
+
+Index ini digunakan untuk mempercepat
+pencarian profil VPN berdasarkan router
+tertentu.

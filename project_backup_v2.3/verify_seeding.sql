@@ -1,0 +1,10 @@
+SELECT 'mikrotik_boards' as table_name, count(*) FROM mikrotik_boards
+UNION ALL SELECT 'board_daily_summary', count(*) FROM board_daily_summary
+UNION ALL SELECT 'board_resource_stats', count(*) FROM board_resource_stats
+UNION ALL SELECT 'board_speed_stats', count(*) FROM board_speed_stats
+UNION ALL SELECT 'hotspot_usage_raw', count(*) FROM hotspot_usage_raw
+UNION ALL SELECT 'board_pppoe_usage', count(*) FROM board_pppoe_usage
+UNION ALL SELECT 'board_monthly_summary', count(*) FROM board_monthly_summary
+UNION ALL SELECT 'hotspot_usage_monthly', count(*) FROM hotspot_usage_monthly
+UNION ALL SELECT 'board_interface_usage', count(*) FROM board_interface_usage
+UNION ALL SELECT 'board_interface_configs', count(*) FROM board_interface_configs;

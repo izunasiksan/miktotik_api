@@ -1,0 +1,274 @@
+-- ============================================================
+-- NOMOR 18 AUDIT LOGS Security & Compliance
+-- ============================================================
+
+Tujuan:
+
+Tabel audit_logs digunakan untuk mencatat
+aktivitas penting yang dilakukan oleh user
+dalam sistem.
+
+Audit log berfungsi sebagai mekanisme
+keamanan dan pencatatan histori aktivitas
+yang dapat digunakan untuk:
+
+- audit keamanan sistem
+- pelacakan perubahan konfigurasi
+- investigasi kesalahan sistem
+- kepatuhan (compliance) operasional
+
+Setiap aksi penting yang dilakukan oleh user
+akan dicatat dalam tabel ini.
+
+Contoh aktivitas yang dicatat:
+
+- login ke sistem
+- menambahkan router
+- mengubah konfigurasi router
+- menghapus data
+- menjalankan automation job
+
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE audit_logs (
+    log_id          SERIAL PRIMARY KEY,
+    user_id         UUID REFERENCES master_users(user_id) ON DELETE SET NULL,
+    action          VARCHAR(50) NOT NULL,
+    target_resource VARCHAR(100) NOT NULL,
+    details         JSONB,
+    ip_address      VARCHAR(45),
+    status          VARCHAR(20) DEFAULT 'SUCCESS',
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_audit_logs_user_id
+ON audit_logs(user_id);
+
+CREATE INDEX idx_audit_logs_action
+ON audit_logs(action);
+
+CREATE INDEX idx_audit_logs_details_gin
+ON audit_logs USING GIN (details);
+
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+log_id
+Tipe: SERIAL
+
+Identifier unik untuk setiap catatan audit.
+
+Nilai dihasilkan otomatis oleh database.
+
+------------------------------------------------------------
+
+user_id
+Tipe: UUID
+
+Foreign key yang menghubungkan log aktivitas
+dengan user yang melakukan aksi.
+
+Relasi:
+
+audit_logs.user_id
+→ master_users.user_id
+
+Constraint:
+
+ON DELETE SET NULL
+
+Artinya jika user dihapus dari sistem,
+maka data audit tetap dipertahankan
+tetapi nilai user_id akan menjadi NULL.
+
+------------------------------------------------------------
+
+action
+Tipe: VARCHAR(50)
+
+Menentukan jenis aksi yang dilakukan oleh user.
+
+Contoh nilai:
+
+LOGIN
+LOGOUT
+CREATE
+UPDATE
+DELETE
+EXECUTE
+CONFIG_CHANGE
+
+Field ini digunakan untuk mengklasifikasikan
+jenis aktivitas dalam sistem.
+
+------------------------------------------------------------
+
+target_resource
+Tipe: VARCHAR(100)
+
+Menunjukkan objek atau resource
+yang menjadi target dari aksi user.
+
+Contoh nilai:
+
+mikrotik_boards
+automation_jobs
+board_interface_configs
+telegram_bots
+
+Field ini membantu sistem audit
+mengidentifikasi bagian sistem yang diakses.
+
+------------------------------------------------------------
+
+details
+Tipe: JSONB
+
+Menyimpan detail tambahan tentang aksi
+yang dilakukan oleh user.
+
+Contoh struktur data:
+
+{
+  "board_id": "3a8c3b8f-9d6f-4b21-91b7-7a5e6c9e8f4d",
+  "field_changed": "router_name",
+  "old_value": "Router-Old",
+  "new_value": "Router-New"
+}
+
+Atau:
+
+{
+  "username": "admin",
+  "login_method": "web"
+}
+
+JSONB digunakan karena:
+
+- fleksibel untuk berbagai jenis data
+- mudah dianalisis
+- dapat diindex menggunakan GIN index
+
+------------------------------------------------------------
+
+ip_address
+Tipe: VARCHAR(45)
+
+Menyimpan alamat IP user yang
+melakukan aksi pada sistem.
+
+Format mendukung:
+
+IPv4
+IPv6
+
+Contoh:
+
+192.168.1.10
+2001:db8::1
+
+------------------------------------------------------------
+
+status
+Tipe: VARCHAR(20)
+
+Status hasil dari aksi yang dilakukan.
+
+Contoh nilai:
+
+SUCCESS
+FAILED
+DENIED
+
+Default:
+
+SUCCESS
+
+------------------------------------------------------------
+
+created_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Waktu ketika aktivitas dicatat
+oleh sistem audit.
+
+Nilai default:
+
+CURRENT_TIMESTAMP
+
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_audit_logs_user_id
+
+Index pada kolom:
+
+user_id
+
+Digunakan untuk mempercepat query
+yang mencari aktivitas berdasarkan user.
+
+Contoh:
+
+melihat aktivitas admin tertentu.
+
+------------------------------------------------------------
+
+idx_audit_logs_action
+
+Index pada kolom:
+
+action
+
+Digunakan untuk analisis jenis aktivitas.
+
+Contoh:
+
+mencari semua aktivitas DELETE.
+
+------------------------------------------------------------
+
+idx_audit_logs_details_gin
+
+Index tipe:
+
+GIN (Generalized Inverted Index)
+
+Digunakan pada kolom JSONB:
+
+details
+
+Tujuan index ini adalah mempercepat
+query yang melakukan pencarian
+di dalam struktur JSON.
+
+Contoh query:
+
+mencari perubahan pada field tertentu
+atau mencari aktivitas berdasarkan
+board_id yang tersimpan dalam JSON.
+
+
+============================================================
+TUJUAN SISTEM AUDIT
+============================================================
+
+Sistem audit log digunakan untuk:
+
+1. Mencatat semua aktivitas penting user.
+
+2. Menyediakan histori perubahan sistem.
+
+3. Mendukung proses keamanan dan investigasi.
+
+4. Memastikan transparansi aktivitas sistem.
+
+5. Mendukung kebutuhan compliance
+dan monitoring keamanan.

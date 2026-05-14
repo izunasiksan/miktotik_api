@@ -1,0 +1,1412 @@
+{
+  "inputFile": "e:\\mikrotik_api\\docs\\analisis_data_v2.4\\e2e_best_practice\\docs\\audit.txt",
+  "generatedAt": "2026-03-07T05:09:43.104115+00:00",
+  "metrics": {
+    "jumlahEvent": 0,
+    "distribusiTipeAksi": {},
+    "daftarUserTeraktif": [],
+    "eventCritic": [],
+    "anomalySummary": {
+      "totalAnomali": 231,
+      "missingValue": 115,
+      "invalidTimestamp": 0,
+      "invalidHasil": 0,
+      "unparsedLine": 116,
+      "invalidJson": 0
+    }
+  },
+  "anomalies": [
+    {
+      "lineNumber": 1,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Tabel yang benar-benar digunakan di test ini"
+    },
+    {
+      "lineNumber": 3,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Script E2E kamu memang melakukan seed ke 6 tabel berikut:"
+    },
+    {
+      "lineNumber": 5,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_speed_stats"
+    },
+    {
+      "lineNumber": 6,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_resource_stats"
+    },
+    {
+      "lineNumber": 7,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_client_stats"
+    },
+    {
+      "lineNumber": 8,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_interface_usage"
+    },
+    {
+      "lineNumber": 9,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_pppoe_usage"
+    },
+    {
+      "lineNumber": 10,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "hotspot_usage_raw"
+    },
+    {
+      "lineNumber": 12,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Bukti di kode:"
+    },
+    {
+      "lineNumber": 14,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "await db.execute(text(f\"DELETE FROM board_speed_stats WHERE board_id = '{board_id}'\"))"
+    },
+    {
+      "lineNumber": 15,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "await db.execute(text(f\"DELETE FROM board_resource_stats WHERE board_id = '{board_id}'\"))"
+    },
+    {
+      "lineNumber": 16,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "await db.execute(text(f\"DELETE FROM board_client_stats WHERE board_id = '{board_id}'\"))"
+    },
+    {
+      "lineNumber": 17,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "await db.execute(text(f\"DELETE FROM board_interface_usage WHERE board_id = '{board_id}'\"))"
+    },
+    {
+      "lineNumber": 18,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "await db.execute(text(f\"DELETE FROM board_pppoe_usage WHERE board_id = '{board_id}'\"))"
+    },
+    {
+      "lineNumber": 19,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "await db.execute(text(f\"DELETE FROM hotspot_usage_raw WHERE board_id = '{board_id}'\"))"
+    },
+    {
+      "lineNumber": 21,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Dan memang di-seed juga:"
+    },
+    {
+      "lineNumber": 23,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "1\ufe0f\u20e3 board_speed_stats"
+    },
+    {
+      "lineNumber": 24,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "speed_stats.append(BoardSpeedStat("
+    },
+    {
+      "lineNumber": 25,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 25,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 25,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 25,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 26,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 26,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 26,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 26,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 27,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 27,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 27,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 27,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 28,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 28,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 28,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 28,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 29,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 29,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 29,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 29,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 30,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "log_time=current_time"
+    },
+    {
+      "lineNumber": 31,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "))"
+    },
+    {
+      "lineNumber": 32,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "2\ufe0f\u20e3 board_resource_stats"
+    },
+    {
+      "lineNumber": 33,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "resource_stats.append(BoardResourceStat("
+    },
+    {
+      "lineNumber": 34,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 34,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 34,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 34,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 35,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 35,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 35,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 35,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 36,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 36,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 36,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 36,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 37,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 37,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 37,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 37,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 38,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "log_time=current_time"
+    },
+    {
+      "lineNumber": 39,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "))"
+    },
+    {
+      "lineNumber": 40,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "3\ufe0f\u20e3 board_client_stats"
+    },
+    {
+      "lineNumber": 41,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "client_stats.append(BoardClientStat("
+    },
+    {
+      "lineNumber": 42,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 42,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 42,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 42,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 43,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 43,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 43,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 43,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 44,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 44,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 44,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 44,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 45,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 45,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 45,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 45,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 46,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "log_time=current_time"
+    },
+    {
+      "lineNumber": 47,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "))"
+    },
+    {
+      "lineNumber": 48,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "4\ufe0f\u20e3 board_interface_usage"
+    },
+    {
+      "lineNumber": 50,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "(seeded per hari)"
+    },
+    {
+      "lineNumber": 52,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "if current_time.hour == 0 and current_time.minute == 0:"
+    },
+    {
+      "lineNumber": 53,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "db.add(BoardInterfaceUsage("
+    },
+    {
+      "lineNumber": 54,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 54,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 54,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 54,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 55,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 55,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 55,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 55,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 56,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 56,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 56,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 56,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 57,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 57,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 57,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 57,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 58,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 58,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 58,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 58,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 59,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "log_date=log_date"
+    },
+    {
+      "lineNumber": 60,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "))"
+    },
+    {
+      "lineNumber": 61,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "5\ufe0f\u20e3 board_pppoe_usage"
+    },
+    {
+      "lineNumber": 62,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "db.add(BoardPppoeUsage("
+    },
+    {
+      "lineNumber": 63,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 63,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 63,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 63,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 64,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 64,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 64,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 64,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 65,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 65,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 65,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 65,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 66,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 66,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 66,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 66,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 67,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 67,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 67,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 67,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 68,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "log_date=log_date"
+    },
+    {
+      "lineNumber": 69,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "))"
+    },
+    {
+      "lineNumber": 70,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "6\ufe0f\u20e3 hotspot_usage_raw"
+    },
+    {
+      "lineNumber": 71,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "db.add(HotspotUsageRaw("
+    },
+    {
+      "lineNumber": 72,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 72,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 72,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 72,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 73,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {
+        "user": "\"test_user_hotspot\""
+      }
+    },
+    {
+      "lineNumber": 73,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {
+        "user": "\"test_user_hotspot\""
+      }
+    },
+    {
+      "lineNumber": 73,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {
+        "user": "\"test_user_hotspot\""
+      }
+    },
+    {
+      "lineNumber": 74,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 74,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 74,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 74,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 75,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 75,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 75,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 75,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 76,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 76,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 76,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 76,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 77,
+      "type": "missing_value",
+      "field": "timestamp",
+      "raw": {}
+    },
+    {
+      "lineNumber": 77,
+      "type": "missing_value",
+      "field": "user",
+      "raw": {}
+    },
+    {
+      "lineNumber": 77,
+      "type": "missing_value",
+      "field": "aksi",
+      "raw": {}
+    },
+    {
+      "lineNumber": 77,
+      "type": "missing_value",
+      "field": "hasil",
+      "raw": {}
+    },
+    {
+      "lineNumber": 78,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "log_date=log_date"
+    },
+    {
+      "lineNumber": 79,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "))"
+    },
+    {
+      "lineNumber": 80,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Tapi ada hal penting \u26a0\ufe0f"
+    },
+    {
+      "lineNumber": 82,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Walaupun 6 tabel di-seed, pipeline analytics kamu hanya memakai 2 tabel."
+    },
+    {
+      "lineNumber": 84,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Di Stage 0:"
+    },
+    {
+      "lineNumber": 86,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "run_normalization_preview()"
+    },
+    {
+      "lineNumber": 88,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "yang biasanya hanya membaca:"
+    },
+    {
+      "lineNumber": 90,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_speed_stats"
+    },
+    {
+      "lineNumber": 91,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_resource_stats"
+    },
+    {
+      "lineNumber": 93,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Itu juga terlihat di debug kamu sebelumnya:"
+    },
+    {
+      "lineNumber": 95,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "rx"
+    },
+    {
+      "lineNumber": 96,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "tx"
+    },
+    {
+      "lineNumber": 97,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "cpu"
+    },
+    {
+      "lineNumber": 98,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "mem"
+    },
+    {
+      "lineNumber": 100,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Tidak ada:"
+    },
+    {
+      "lineNumber": 102,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "client"
+    },
+    {
+      "lineNumber": 103,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "interface"
+    },
+    {
+      "lineNumber": 104,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "pppoe"
+    },
+    {
+      "lineNumber": 105,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "hotspot"
+    },
+    {
+      "lineNumber": 106,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Jadi kondisi sebenarnya"
+    },
+    {
+      "lineNumber": 107,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Tabel\tSeed\tDipakai Analytics"
+    },
+    {
+      "lineNumber": 108,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_speed_stats\t\u2714\t\u2714"
+    },
+    {
+      "lineNumber": 109,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_resource_stats\t\u2714\t\u2714"
+    },
+    {
+      "lineNumber": 110,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_client_stats\t\u2714\t\u274c"
+    },
+    {
+      "lineNumber": 111,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_interface_usage\t\u2714\t\u274c"
+    },
+    {
+      "lineNumber": 112,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_pppoe_usage\t\u2714\t\u274c"
+    },
+    {
+      "lineNumber": 113,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "hotspot_usage_raw\t\u2714\t\u274c"
+    },
+    {
+      "lineNumber": 114,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Artinya E2E test kamu sekarang"
+    },
+    {
+      "lineNumber": 116,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Belum full pipeline test."
+    },
+    {
+      "lineNumber": 118,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Masih:"
+    },
+    {
+      "lineNumber": 120,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Traffic analytics pipeline test"
+    },
+    {
+      "lineNumber": 122,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "belum:"
+    },
+    {
+      "lineNumber": 124,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Network behavior analytics pipeline"
+    },
+    {
+      "lineNumber": 125,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Kenapa ini penting"
+    },
+    {
+      "lineNumber": 127,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Kalau nanti kamu ingin analisis seperti:"
+    },
+    {
+      "lineNumber": 129,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Habit Analysis"
+    },
+    {
+      "lineNumber": 130,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Jam aktif user"
+    },
+    {
+      "lineNumber": 131,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "PPPoE growth"
+    },
+    {
+      "lineNumber": 132,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Hotspot behavior"
+    },
+    {
+      "lineNumber": 134,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "perlu:"
+    },
+    {
+      "lineNumber": 136,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_client_stats"
+    },
+    {
+      "lineNumber": 137,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_pppoe_usage"
+    },
+    {
+      "lineNumber": 138,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "hotspot_usage_raw"
+    },
+    {
+      "lineNumber": 139,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Capacity Analysis"
+    },
+    {
+      "lineNumber": 141,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "perlu:"
+    },
+    {
+      "lineNumber": 143,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "board_interface_usage"
+    },
+    {
+      "lineNumber": 144,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Rekomendasi arsitektur (yang biasanya dipakai)"
+    },
+    {
+      "lineNumber": 146,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Stage 0 Normalization sebaiknya membaca:"
+    },
+    {
+      "lineNumber": 148,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Traffic Layer"
+    },
+    {
+      "lineNumber": 149,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "- board_speed_stats"
+    },
+    {
+      "lineNumber": 150,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "- board_interface_usage"
+    },
+    {
+      "lineNumber": 152,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Resource Layer"
+    },
+    {
+      "lineNumber": 153,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "- board_resource_stats"
+    },
+    {
+      "lineNumber": 155,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "User Layer"
+    },
+    {
+      "lineNumber": 156,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "- board_client_stats"
+    },
+    {
+      "lineNumber": 157,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "- board_pppoe_usage"
+    },
+    {
+      "lineNumber": 158,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "- hotspot_usage_raw"
+    },
+    {
+      "lineNumber": 160,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "lalu menghasilkan normalized dataset tunggal."
+    },
+    {
+      "lineNumber": 162,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Contoh output:"
+    },
+    {
+      "lineNumber": 164,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "period"
+    },
+    {
+      "lineNumber": 165,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "rx_mbps"
+    },
+    {
+      "lineNumber": 166,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "tx_mbps"
+    },
+    {
+      "lineNumber": 167,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "cpu"
+    },
+    {
+      "lineNumber": 168,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "memory"
+    },
+    {
+      "lineNumber": 169,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "active_users"
+    },
+    {
+      "lineNumber": 170,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "pppoe_users"
+    },
+    {
+      "lineNumber": 171,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "hotspot_users"
+    },
+    {
+      "lineNumber": 173,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Baru analytics bisa jauh lebih kuat."
+    },
+    {
+      "lineNumber": 175,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Kesimpulan"
+    },
+    {
+      "lineNumber": 177,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Script kamu sekarang:"
+    },
+    {
+      "lineNumber": 179,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Seed data : 6 tabel \u2714"
+    },
+    {
+      "lineNumber": 180,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Analytics : 2 tabel saja"
+    },
+    {
+      "lineNumber": 182,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "jadi pipeline E2E kamu sekarang sebenarnya:"
+    },
+    {
+      "lineNumber": 184,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Traffic + Resource analytics test"
+    },
+    {
+      "lineNumber": 186,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "belum:"
+    },
+    {
+      "lineNumber": 188,
+      "type": "unparsed_line",
+      "field": "line",
+      "raw": "Full network analytics test"
+    }
+  ]
+}

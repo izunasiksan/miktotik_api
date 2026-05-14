@@ -1,0 +1,1446 @@
+---
+name: blueprint
+description: blueprint
+---
+
+================================================================
+DOKUMEN TEKNIS: LANGKAH 1 - PERSIAPAN LINGKUNGAN KERJA
+Project: Mikrotik Management System (Backend Python)
+Target: Standarisasi Environment & Dependency Management
+Langkah ini bertujuan untuk mengisolasi proyek agar tidak terjadi konflik library antar proyek dan memastikan semua dependensi yang dibutuhkan untuk koneksi asinkron PostgreSQL serta Mikrotik API tersedia.
+
+PEMBUATAN VIRTUAL ENVIRONMENT (VENV)
+
+Wajib dilakukan untuk menjaga kebersihan sistem operasi.
+
+Jalankan di terminal/command prompt pada root folder proyek:
+python -m venv venv
+
+Aktivasi untuk Windows:
+venv\Scripts\activate
+
+Aktivasi untuk Linux/macOS:
+source venv/bin/activate
+
+INSTALASI DEPENDENSI UTAMA (REQUIREMENTS)
+
+Berikut adalah daftar library yang wajib diinstal beserta fungsinya:
+
+pip install sqlalchemy[asyncio]   # ORM untuk PostgreSQL (Async mode)
+pip install asyncpg              # Driver PostgreSQL asinkron tercepat
+pip install python-dotenv        # Untuk membaca file .env (Keamanan)
+pip install cryptography         # Untuk enkripsi/dekripsi AES password
+pip install apscheduler          # Untuk Cron Jobs (Task Force Sync 23:55)
+pip install aiohttp              # Untuk request API Telegram asinkron
+pip install routeros-api         # Library dasar komunikasi Mikrotik
+pip install pydantic             # Untuk validasi skema data Python
+
+Opsional (Untuk API Layer):
+pip install fastapi uvicorn      # Jika ingin membangun dashboard API
+
+STRUKTUR FILE KONFIGURASI AWAL
+
+Buat file '.gitignore' agar folder venv dan file sensitif tidak terupload ke Git:
+
+.gitignore
+venv/
+pycache/
+*.pyc
+.env
+*.log
+.vscode/
+
+PEMBUATAN TEMPLATE .ENV (ENVIRONMENT VARIABLES)
+
+Buat file bernama '.env' di root directory. File ini adalah jantung keamanan kredensial Anda.
+
+--- DATABASE CONFIG ---
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=db_master_mikrotik
+DB_USER=postgres
+DB_PASS=input_password_disini
+
+--- SECURITY CONFIG ---
+Gunakan 32 karakter unik untuk AES-256
+AES_SECRET_KEY=masukkan_kunci_rahasia_32_karakter
+
+--- TELEGRAM CONFIG ---
+TELEGRAM_BOT_TOKEN=input_token_bot_disini
+
+--- APP CONFIG ---
+DEBUG=True
+MAX_WORKER_PARALLEL=20
+
+VERIFIKASI INSTALASI
+
+Untuk memastikan lingkungan sudah siap, buat file 'test_env.py' dan jalankan:
+
+import os
+from dotenv import load_dotenv
+import asyncio
+import asyncpg
+
+load_dotenv()
+
+async def check_db():
+try:
+conn = await asyncpg.connect(
+user=os.getenv("DB_USER"),
+password=os.getenv("DB_PASS"),
+database=os.getenv("DB_NAME"),
+host=os.getenv("DB_HOST")
+)
+print("✅ Koneksi Database Berhasil!")
+await conn.close()
+except Exception as e:
+print(f"❌ Error Koneksi: {e}")
+
+if name == "main":
+print(f"AES Key Loaded: {'Yes' if os.getenv('AES_SECRET_KEY') else 'No'}")
+asyncio.run(check_db())
+
+CATATAN PENTING UNTUK DEVELOPER
+
+Selalu pastikan VENV AKTIF sebelum menjalankan skrip apa pun.
+
+Jika ada penambahan library baru, segera jalankan 'pip freeze > requirements.txt'.
+
+Gunakan Python versi 3.9 ke atas untuk dukungan fitur 'asyncio' yang lebih stabil.
+
+================================================================
+
+================================================================
+DOKUMEN TEKNIS: LANGKAH 2 - PEMBUATAN STRUKTUR FOLDER PROYEK
+Project: Mikrotik Management System (Backend Python)
+Arsitektur: Modular Service Pattern (Clean Architecture)
+Struktur folder yang rapi memudahkan skalabilitas dan kolaborasi tim. Kita akan memisahkan antara logika database (ORM), logika bisnis (Services), dan tugas latar belakang (Workers).
+
+SKEMA STRUKTUR DIREKTORI
+
+Silakan buat struktur folder berikut di dalam root folder proyek Anda:
+
+mikrotik_manager/
+│
+├── config/                 # Konfigurasi sistem & Database connection
+│   ├── init.py
+│   ├── database.py         # SQLAlchemy Async Engine & Session
+│   └── settings.py         # Pydantic BaseSettings (Baca .env)
+│
+├── models/                 # Definisi Tabel PostgreSQL (SQLAlchemy Models)
+│   ├── init.py
+│   ├── base.py             # Declarative Base
+│   ├── users.py            # Tabel 1 & 4
+│   ├── boards.py           # Tabel 2, 3, & 5
+│   ├── stats.py            # Tabel 6, 7, 8, & 9
+│   └── logs.py             # Tabel 10, 11, & 12
+│
+├── services/               # Logika Bisnis (Re-usable Logic)
+│   ├── init.py
+│   ├── auth_service.py     # Hashing password user
+│   ├── crypto_service.py   # Enkripsi/Dekripsi AES Mikrotik
+│   ├── delta_service.py    # Perhitungan Delta Usage (Tabel 14-16)
+│   └── telegram_service.py # Integrasi API Telegram
+│
+├── workers/                # Background Processor (Async Loop)
+│   ├── init.py
+│   ├── polling_worker.py   # Penarik data resource & stats
+│   ├── ping_sweeper.py     # Cek online/offline board
+│   └── alert_worker.py     # Pemantau event & pengirim alert
+│
+├── scheduler/              # Cron Jobs (Terjadwal)
+│   ├── init.py
+│   └── cron_tasks.py       # Task Force Sync (23:55) & Daily Summary
+│
+├── logs/                   # Folder untuk menyimpan file log (.log)
+│
+├── .env                    # File rahasia kredensial
+├── .gitignore              # Daftar file yang diabaikan Git
+├── main.py                 # Entry point aplikasi
+└── requirements.txt        # Daftar library/dependencies
+
+PENJELASAN MODUL (PLAINTEXT READY)
+
+A. Folder [models/]:
+Memisahkan tabel berdasarkan fungsinya agar file tidak terlalu panjang.
+Setiap perubahan skema DB hanya perlu di-update di sini.
+
+B. Folder [services/]:
+Berisi "Fungsi Murni". Contoh: Fungsi dekripsi AES tidak boleh berada
+di dalam worker. Worker hanya memanggil service ini agar kode tetap bersih (DRY - Don't Repeat Yourself).
+
+C. Folder [workers/]:
+Berisi script yang berjalan selamanya (while True).
+
+polling_worker: Fokus menarik data API Mikrotik.
+
+ping_sweeper: Fokus pada konektivitas ringan (ICMP).
+
+D. Folder [config/]:
+Pusat pengaturan. Menggunakan Pydantic Settings untuk memastikan jika
+ada variabel .env yang kurang, aplikasi akan langsung error saat startup
+(Fail Fast).
+
+CARA CEPAT MEMBUAT STRUKTUR (TERMINAL)
+
+Jika Anda menggunakan Linux/macOS atau Git Bash di Windows, copy-paste perintah ini:
+
+mkdir -p config models services workers scheduler logs
+touch config/init.py config/database.py config/settings.py
+touch models/init.py models/base.py models/users.py models/boards.py models/stats.py models/logs.py
+touch services/init.py services/auth_service.py services/crypto_service.py services/delta_service.py services/telegram_service.py
+touch workers/init.py workers/polling_worker.py workers/ping_sweeper.py workers/alert_worker.py
+touch scheduler/init.py scheduler/cron_tasks.py
+touch main.py .env .gitignore requirements.txt
+
+TUJUAN AKHIR
+
+Dengan struktur ini, sistem Anda siap untuk:
+
+Unit Testing: Mengetes logic delta tanpa harus menjalankan worker.
+
+Scalability: Menambah fitur baru (misal: Monitoring OLT) tinggal menambah file di models dan workers.
+
+Maintenance: Jika API Telegram berubah, Anda cukup memperbaiki file di services/telegram_service.py.
+
+================================================================
+================================================================ DOKUMEN TEKNIS: LANGKAH 3 - KONFIGURASI KEAMANAN (.ENV) & SETTINGS Project: Mikrotik Management System (Backend Python) Target: Centralized Configuration & Fail-Fast Mechanism
+Langkah ini adalah tentang menghubungkan variabel lingkungan (.env) ke dalam kode Python secara aman menggunakan Pydantic. Ini memastikan aplikasi tidak akan berjalan jika ada konfigurasi penting yang terlewat.
+
+PENGISIAN FILE .ENV (ROOT DIRECTORY)
+
+Pastikan file '.env' di folder utama sudah terisi lengkap.
+
+.env
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=db_master_mikrotik
+DB_USER=postgres
+DB_PASS=password_anda
+
+Key untuk AES-256 (Harus 32 Karakter untuk keamanan maksimal)
+AES_SECRET_KEY=bukan_password_biasa_123456789012
+
+TELEGRAM_BOT_TOKEN=123456789:AAHExampleToken
+MAX_WORKER_PARALLEL=20
+
+KODE: config/settings.py
+
+Gunakan library 'pydantic-settings' untuk membaca .env secara otomatis.
+(Instal dulu: pip install pydantic-settings)
+
+Python
+# config/settings.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
+
+class Settings(BaseSettings):
+    # Database Settings
+    DB_HOST: str = Field(alias="DB_HOST")
+    DB_PORT: int = Field(alias="DB_PORT")
+    DB_NAME: str = Field(alias="DB_NAME")
+    DB_USER: str = Field(alias="DB_USER")
+    DB_PASS: str = Field(alias="DB_PASS")
+
+    # Security & Third Party
+    AES_SECRET_KEY: str = Field(alias="AES_SECRET_KEY")
+    TELEGRAM_BOT_TOKEN: str = Field(alias="TELEGRAM_BOT_TOKEN")
+    
+    # App Logic
+    MAX_WORKER_PARALLEL: int = 20
+
+    # Otomatis baca file .env
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+# Instansiasi tunggal (Singleton)
+settings = Settings()
+KODE: config/database.py (ASYNC CONNECTION)
+
+Membuat engine dan session maker asinkron menggunakan SQLAlchemy.
+
+Python
+# config/database.py
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from .settings import settings
+
+# Format URL: postgresql+asyncpg://user:pass@host:port/dbname
+DATABASE_URL = (
+    f"postgresql+asyncpg://{settings.DB_USER}:{settings.DB_PASS}@"
+    f"{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+)
+
+# 1. Buat Engine dengan Connection Pooling
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,                # Set True jika ingin debug SQL log
+    pool_size=10,              # Koneksi standby
+    max_overflow=settings.MAX_WORKER_PARALLEL, 
+    pool_recycle=3600          # Refresh koneksi setiap 1 jam
+)
+
+# 2. Buat Session Maker
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
+# 3. Dependency untuk mendapatkan session
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+LOGIKA "FAIL-FAST"
+
+Jika Anda lupa mengisi AES_SECRET_KEY di file .env, Python akan langsung mengeluarkan error ValidationError saat aplikasi dijalankan (main.py).
+
+Ini mencegah aplikasi berjalan setengah matang yang bisa menyebabkan error dekripsi password di tengah jalan saat sedang melakukan polling.
+
+CARA TEST KONEKSI
+
+Uji apakah konfigurasi sudah benar dengan membuat file test_config.py:
+
+Python
+# test_config.py
+from config.settings import settings
+from config.database import DATABASE_URL
+import asyncio
+import asyncpg
+
+async def test():
+    print(f"Mencoba konek ke: {settings.DB_HOST}")
+    try:
+        conn = await asyncpg.connect(DATABASE_URL.replace("postgresql+asyncpg", "postgresql"))
+        print("✅ Database Terkoneksi!")
+        await conn.close()
+    except Exception as e:
+        print(f"❌ Gagal: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(test())
+================================================================
+================================================================ DOKUMEN TEKNIS: LANGKAH 4 - PEMETAAN MODEL ORM (TABEL 1 - 5) Project: Mikrotik Management System (Backend Python) Target: Object Relational Mapping (ORM) menggunakan SQLAlchemy 2.0
+Pada langkah ini, kita akan menerjemahkan skema SQL yang telah kita buat ke dalam kode Python. Kita akan menggunakan fitur asinkron dari SQLAlchemy 2.0. Kita akan fokus pada Tabel 1 sampai 5 yang merupakan pondasi sistem.
+
+KODE: models/base.py
+
+Ini adalah base class yang akan digunakan oleh semua model tabel.
+
+Python
+# models/base.py
+from sqlalchemy.orm import DeclarativeBase
+
+class Base(DeclarativeBase):
+    pass
+KODE: models/users.py (TABEL 1 & 4)
+
+Mencakup manajemen User dan Hak Akses ke Board.
+
+Python
+# models/users.py
+import uuid
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table, text
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from datetime import datetime
+from .base import Base
+
+class MasterUser(Base):
+    __tablename__ = "master_users"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()")
+    )
+    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    full_name: Mapped[str] = mapped_column(String(100), nullable=True)
+    role: Mapped[str] = mapped_column(String(20), server_default="teknisi")
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+    # Relasi ke Tabel Akses
+    access_boards: Mapped[list["UserBoardAccess"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+class UserBoardAccess(Base):
+    __tablename__ = "user_board_access"
+
+    access_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("master_users.user_id", ondelete="CASCADE"))
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+    user: Mapped["MasterUser"] = relationship(back_populates="access_boards")
+    board: Mapped["MikrotikBoard"] = relationship(back_populates="users_with_access")
+KODE: models/boards.py (TABEL 2, 3, & 5)
+
+Mencakup data utama Router, Kredensial (Encrypted), dan Profil VPN.
+
+Python
+# models/boards.py
+import uuid
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, text
+from sqlalchemy.dialects.postgresql import UUID, INET, MACADDR
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from datetime import datetime
+from .base import Base
+
+class MikrotikBoard(Base):
+    __tablename__ = "mikrotik_boards"
+
+    board_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()")
+    )
+    board_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    mikrotik_identity: Mapped[str] = mapped_column(String(100), nullable=True)
+    board_model: Mapped[str] = mapped_column(String(50), nullable=True)
+    site_group: Mapped[str] = mapped_column(String(50), server_default="Umum")
+    
+    mac_address: Mapped[str] = mapped_column(MACADDR, unique=True, nullable=False)
+    ip_address: Mapped[str] = mapped_column(INET, nullable=False)
+    
+    port_ssh: Mapped[int] = mapped_column(Integer, server_default="22")
+    port_api: Mapped[int] = mapped_column(Integer, server_default="8728")
+    port_winbox: Mapped[int] = mapped_column(Integer, server_default="8291")
+    port_ftp: Mapped[int] = mapped_column(Integer, server_default="21")
+
+    is_online: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    is_monitor: Mapped[bool] = mapped_column(Boolean, server_default="true")
+    is_public_review: Mapped[bool] = mapped_column(Boolean, server_default="true")
+    is_maintenance: Mapped[bool] = mapped_column(Boolean, server_default="false")
+
+    last_ping_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"), onupdate=text("now()"))
+
+    # Relasi
+    credentials: Mapped["BoardCredential"] = relationship(back_populates="board", uselist=False, cascade="all, delete-orphan")
+    vpn_profile: Mapped["VpnProfile"] = relationship(back_populates="board", uselist=False, cascade="all, delete-orphan")
+    users_with_access: Mapped[list["UserBoardAccess"]] = relationship(back_populates="board")
+
+class BoardCredential(Base):
+    __tablename__ = "board_credentials"
+
+    cred_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    username_mikrotik: Mapped[str] = mapped_column(String(50), nullable=False)
+    password_mikrotik_encrypted: Mapped[str] = mapped_column(String, nullable=False) # AES Encrypted
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+    board: Mapped["MikrotikBoard"] = relationship(back_populates="credentials")
+
+class VpnProfile(Base):
+    __tablename__ = "vpn_profiles"
+
+    vpn_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    
+    vpn_type: Mapped[str] = mapped_column(String(20), server_default="L2TP/IPSEC")
+    vpn_api: Mapped[str] = mapped_column(String(255), nullable=True)
+    vpn_username: Mapped[str] = mapped_column(String(50), nullable=True)
+    vpn_password_encrypted: Mapped[str] = mapped_column(String, nullable=True)
+    
+    vpn_ssh: Mapped[str] = mapped_column(String(255), nullable=True)
+    vpn_ftp: Mapped[str] = mapped_column(String(255), nullable=True)
+    vpn_winbox: Mapped[str] = mapped_column(String(255), nullable=True)
+    
+    is_connected: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    last_connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    board: Mapped["MikrotikBoard"] = relationship(back_populates="vpn_profile")
+CATATAN PENTING (PLAINTEXT READY)
+
+A. Type Hinting (Mapped):
+Kita menggunakan sintaks Mapped SQLAlchemy 2.0 yang lebih modern
+dan mendukung pengecekan tipe statis (mypy/pylance).
+
+B. PostgreSQL Dialects:
+Field MACADDR, INET, dan UUID didefinisikan secara spesifik agar
+PostgreSQL melakukan validasi format data di level kolom (database).
+
+C. Cascade Delete:
+Konfigurasi cascade="all, delete-orphan" pada relasi memastikan
+jika sebuah Board dihapus, maka Kredensial dan Profil VPN-nya
+ikut terhapus secara otomatis agar tidak ada data sampah.
+
+================================================================
+================================================================ DOKUMEN TEKNIS: LANGKAH 5 - PEMETAAN MODEL ORM STATISTIK (TABEL 6 - 9) Project: Mikrotik Management System (Backend Python) Target: Implementasi Time-Series Data & Aggregation Models
+Pada langkah ini, kita akan membuat model untuk menyimpan data performa router yang bersifat historis. Tabel-tabel ini akan menerima volume data yang tinggi, sehingga penggunaan tipe data BigInteger dan Numeric sangat diperhatikan.
+
+KODE: models/stats.py (TABEL 6, 7, 8, & 9)
+
+Script ini mencakup monitoring Client, Resource, Speed, hingga Agregasi Harian.
+
+Python
+# models/stats.py
+import uuid
+from sqlalchemy import Column, String, Integer, BigInteger, Numeric, DateTime, Date, ForeignKey, text, Interval
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from datetime import datetime, date, timedelta
+from .base import Base
+
+class BoardClientStat(Base):
+    __tablename__ = "board_client_stats"
+
+    stat_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    
+    total_hotspot: Mapped[int] = mapped_column(Integer, server_default="0")
+    total_pppoe: Mapped[int] = mapped_column(Integer, server_default="0")
+    
+    # Kolom Computed (Generated Always) di level DB
+    total_active: Mapped[int] = mapped_column(Integer, insert_default=text("total_hotspot + total_pppoe"), init=False)
+    
+    log_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+class BoardResourceStat(Base):
+    __tablename__ = "board_resource_stats"
+
+    resource_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    
+    cpu_load: Mapped[int] = mapped_column(Integer)             # Persentase 0-100
+    free_memory: Mapped[int] = mapped_column(BigInteger)       # Dalam Bytes
+    free_hdd: Mapped[int] = mapped_column(BigInteger)          # Dalam Bytes
+    uptime: Mapped[timedelta] = mapped_column(Interval)        # PostgreSQL INTERVAL mapped to Python timedelta
+    
+    log_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+class BoardSpeedStat(Base):
+    __tablename__ = "board_speed_stats"
+
+    speed_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    
+    interface_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    download_mbps: Mapped[float] = mapped_column(Numeric(10, 2), server_default="0")
+    upload_mbps: Mapped[float] = mapped_column(Numeric(10, 2), server_default="0")
+    
+    log_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+class BoardDailySummary(Base):
+    __tablename__ = "board_daily_summary"
+
+    summary_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    
+    avg_download: Mapped[float] = mapped_column(Numeric(10, 2))
+    max_download: Mapped[float] = mapped_column(Numeric(10, 2))
+    avg_upload: Mapped[float] = mapped_column(Numeric(10, 2))
+    max_clients: Mapped[int] = mapped_column(Integer)
+    
+    log_date: Mapped[date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+ANALISIS TEKNIS (PLAINTEXT READY)
+
+A. BigInteger untuk Bytes:
+Kolom free_memory dan free_hdd menggunakan BigInteger
+karena kapasitas penyimpanan router modern seringkali melebihi
+batas Integer 32-bit (2GB).
+
+B. PostgreSQL Interval:
+Kolom uptime menggunakan tipe Interval. SQLAlchemy secara
+otomatis menerjemahkannya menjadi objek datetime.timedelta
+di Python, sehingga memudahkan Anda menghitung durasi router menyala.
+
+C. Numeric vs Float:
+Untuk download_mbps dan upload_mbps, kita menggunakan Numeric(10, 2)
+untuk akurasi desimal yang presisi (2 angka di belakang koma),
+menghindari error pembulatan yang sering terjadi pada tipe Float biasa.
+
+D. Relationship Hint:
+Tabel-tabel ini tidak memerlukan relationship back_populates
+ke model Board secara eksplisit kecuali jika Anda ingin melakukan
+Deep-Join yang berat. Hal ini dilakukan untuk menjaga performa
+karena tabel stats akan memiliki jutaan baris.
+
+================================================================
+================================================================ DOKUMEN TEKNIS: LANGKAH 6 - PEMETAAN MODEL LOGS & USAGE (TABEL 10 - 16) Project: Mikrotik Management System (Backend Python) Target: Implementasi Audit Trail, Notification, & Usage Tracking
+Pada langkah ini, kita akan melengkapi file models/logs.py. Tabel-tabel ini berfungsi sebagai memori sistem (Log & Backup) serta pelacakan kuota data (Usage) yang sangat penting untuk analisis bisnis.
+
+KODE: models/logs.py (TABEL 10 - 16)
+
+Script ini mencakup Event, Backup, Telegram, Interface Usage, PPPoE, dan Hotspot.
+
+Python
+# models/logs.py
+import uuid
+from sqlalchemy import Column, String, Integer, BigInteger, Boolean, DateTime, Date, ForeignKey, text, ARRAY
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from datetime import datetime, date
+from .base import Base
+
+# --- TABEL 10: BOARD EVENTS ---
+class BoardEvent(Base):
+    __tablename__ = "board_events"
+
+    event_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    event_category: Mapped[str] = mapped_column(String(20)) # connection, system, auth
+    event_level: Mapped[str] = mapped_column(String(10))    # info, warning, critical
+    event_name: Mapped[str] = mapped_column(String, nullable=False)
+    event_detail: Mapped[str] = mapped_column(String, nullable=True)
+    performed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("master_users.user_id", ondelete="SET NULL"), nullable=True)
+    is_reset_event: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    log_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+
+# --- TABEL 11: BOARD BACKUPS ---
+class BoardBackup(Base):
+    __tablename__ = "board_backups"
+
+    backup_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    log_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    router_name: Mapped[str] = mapped_column(String(100))
+    router_model: Mapped[str] = mapped_column(String(50))
+    file_location: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), server_default="success")
+
+# --- TABEL 12: TELEGRAM NOTIFICATION ---
+class TelegramBot(Base):
+    __tablename__ = "telegram_bots"
+    bot_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    bot_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    bot_token: Mapped[str] = mapped_column(String, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")
+
+class TelegramRecipient(Base):
+    __tablename__ = "telegram_recipients"
+    recipient_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("master_users.user_id", ondelete="CASCADE"))
+    bot_id: Mapped[int] = mapped_column(ForeignKey("telegram_bots.bot_id", ondelete="CASCADE"))
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    chat_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    alert_levels: Mapped[list[str]] = mapped_column(ARRAY(String), server_default='{critical}')
+
+# --- TABEL 13-15: INTERFACE & PPPOE USAGE ---
+class BoardInterfaceConfig(Base):
+    __tablename__ = "board_interface_configs"
+    config_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    interface_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")
+
+class BoardInterfaceUsage(Base):
+    __tablename__ = "board_interface_usage"
+    usage_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    interface_name: Mapped[str] = mapped_column(String(100))
+    total_tx_bytes: Mapped[int] = mapped_column(BigInteger, server_default="0")
+    total_rx_bytes: Mapped[int] = mapped_column(BigInteger, server_default="0")
+    log_date: Mapped[date] = mapped_column(Date, server_default=text("current_date"))
+
+class BoardPppoeUsage(Base):
+    __tablename__ = "board_pppoe_usage"
+    usage_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    pppoe_username: Mapped[str] = mapped_column(String(100))
+    download_bytes: Mapped[int] = mapped_column(BigInteger, server_default="0")
+    upload_bytes: Mapped[int] = mapped_column(BigInteger, server_default="0")
+    log_date: Mapped[date] = mapped_column(Date, server_default=text("current_date"))
+
+# --- TABEL 16: HOTSPOT LOYALTY ---
+class HotspotUsageRaw(Base):
+    __tablename__ = "hotspot_usage_raw"
+    raw_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mikrotik_boards.board_id", ondelete="CASCADE"))
+    username: Mapped[str] = mapped_column(String(100))
+    daily_download: Mapped[int] = mapped_column(BigInteger, server_default="0")
+    log_date: Mapped[date] = mapped_column(Date, server_default=text("current_date"))
+
+class HotspotUsageMonthly(Base):
+    __tablename__ = "hotspot_usage_monthly"
+    summary_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(100))
+    total_download: Mapped[int] = mapped_column(BigInteger, server_default="0")
+    frequency_days: Mapped[int] = mapped_column(Integer)
+    month_period: Mapped[date] = mapped_column(Date, nullable=False)
+    is_frequent_user: Mapped[bool] = mapped_column(Boolean, server_default="false")
+ANALISIS TEKNIS (PLAINTEXT READY)
+
+A. PostgreSQL ARRAY:
+Pada TelegramRecipient, kolom alert_levels menggunakan ARRAY(String).
+Ini memungkinkan satu teknisi menerima beberapa level alert sekaligus
+(misal: ['info', 'critical']) dalam satu kolom tunggal.
+
+B. BigInteger untuk Kuota:
+Seluruh kolom usage (Bytes) menggunakan BigInteger karena trafik
+internet harian dapat dengan mudah menembus angka miliaran bytes.
+
+C. Date vs DateTime:
+Untuk tabel usage (14-16), kita menggunakan tipe Date pada log_date
+agar mempermudah query "Group By Date" saat pembuatan laporan harian
+tanpa perlu melakukan konversi waktu (casting).
+
+D. Audit Trail:
+Kolom performed_by di BoardEvent merujuk ke MasterUser untuk
+mencatat siapa admin yang melakukan perubahan (jika dipicu secara manual).
+
+================================================================
+================================================================
+DOKUMEN TEKNIS: LANGKAH 7 - FUNGSI UTILITAS INTI (SERVICES) Project: Mikrotik Management System (Backend Python) Target: Logika Enkripsi AES-256-GCM & Algoritma Delta Usage
+
+Langkah ini membangun "otak" dari backend. Kita akan membuat dua service utama: satu untuk menangani keamanan password Mikrotik dan satu untuk akurasi perhitungan kuota data.
+
+KODE: services/crypto_service.py
+
+Fungsi ini bertanggung jawab untuk mengenkripsi password sebelum disimpan ke DB dan mendekripsinya hanya saat akan login ke router. Kita menggunakan cryptography.hazmat untuk standar industri AES-256-GCM.
+
+Python
+# services/crypto_service.py
+import os
+import base64
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from config.settings import settings
+
+class CryptoService:
+    def __init__(self):
+        # Master Key dari .env (wajib 32 bytes untuk AES-256)
+        key = settings.AES_SECRET_KEY.encode()
+        if len(key) != 32:
+            raise ValueError("AES_SECRET_KEY harus tepat 32 karakter!")
+        self.aesgcm = AESGCM(key)
+
+    def encrypt(self, plaintext: str) -> str:
+        """Mengubah password teks biasa menjadi string terenkripsi base64"""
+        nonce = os.urandom(12)  # GCM standar nonce 12 bytes
+        ciphertext = self.aesgcm.encrypt(nonce, plaintext.encode(), None)
+        # Gabungkan nonce + ciphertext lalu encode ke base64 untuk disimpan di DB
+        return base64.b64encode(nonce + ciphertext).decode('utf-8')
+
+    def decrypt(self, encrypted_text: str) -> str:
+        """Mengubah string base64 kembali menjadi password teks biasa"""
+        data = base64.b64decode(encrypted_text)
+        nonce = data[:12]
+        ciphertext = data[12:]
+        decrypted = self.aesgcm.decrypt(nonce, ciphertext, None)
+        return decrypted.decode('utf-8')
+
+# Singleton instance
+crypto_manager = CryptoService()
+KODE: services/delta_service.py
+
+Fungsi ini menangani "The Delta Logic". Ia memastikan jika router reboot, perhitungan total pemakaian data di database tidak menjadi minus atau kacau.
+
+Python
+# services/delta_service.py
+
+class DeltaService:
+    @staticmethod
+    def calculate_delta(current_bytes: int, last_stored_bytes: int) -> int:
+        """
+        Menghitung selisih (delta) bytes antara tarikan router dan data terakhir.
+        Menangani kondisi router reboot/reset counter.
+        """
+        # Jika data terakhir belum ada (None), delta adalah nilai mikrotik saat ini
+        if last_stored_bytes is None or last_stored_bytes == 0:
+            return current_bytes
+        
+        # JIKA COUNTER RESET (Router Reboot / User Reconnect)
+        # Nilai di router (current) akan lebih kecil dari nilai terakhir di DB
+        if current_bytes < last_stored_bytes:
+            return current_bytes
+        
+        # Kondisi Normal
+        return current_bytes - last_stored_bytes
+
+# Singleton instance
+delta_manager = DeltaService()
+IMPLEMENTASI LOGIKA DALAM WORKER (PREVIEW)
+
+Nantinya, di dalam worker polling, Anda akan memanggil service ini seperti ini:
+
+Python
+# Contoh alur di Worker:
+# 1. Dekripsi password untuk login
+password_asli = crypto_manager.decrypt(board.credentials.password_mikrotik_encrypted)
+
+# 2. Tarik data dari Mikrotik API
+rx_mikrotik = 1500000000 # Contoh data 1.5GB dari router
+
+# 3. Hitung Delta (Asumsi di DB tercatat 1.2GB)
+delta_rx = delta_manager.calculate_delta(rx_mikrotik, last_rx_db)
+
+# 4. Update ke Database (Accumulate)
+# UPDATE table SET total_rx_bytes = total_rx_bytes + delta_rx
+ANALISIS TEKNIS & KEAMANAN
+
+A. AES-256-GCM:
+Kita memilih GCM karena ia menyediakan "Authenticated Encryption".
+Jika ada orang yang mencoba mengubah data terenkripsi di database,
+proses dekripsi akan gagal total, mencegah serangan tampering.
+
+B. Salt/Nonce:
+Setiap enkripsi menghasilkan nonce yang unik. Artinya, meskipun 10 router
+memiliki password yang sama, hasil enkripsi di database akan berbeda-beda.
+
+C. Logic Delta:
+Logika ini adalah penyelamat akurasi. Ia menjamin data usage (Tabel 14-16)
+hanya akan pernah bertambah (incremental), tidak akan pernah berkurang,
+menghasilkan laporan kuota yang valid bagi pelanggan.
+
+================================================================
+
+================================================================
+DOKUMEN TEKNIS: LANGKAH 8 - WORKER POLLING (JANTUNG APLIKASI) Project: Mikrotik Management System (Backend Python) Target: Asynchronous Bulk Data Collection & Database Upsert
+
+Langkah ini adalah implementasi dari Fase 2. Kita akan membuat polling_worker.py yang bertugas menarik data dari banyak router secara paralel, mengolahnya dengan DeltaService, dan menyimpannya ke PostgreSQL secara efisien.
+
+LOGIKA KERJA WORKER
+
+Worker akan berjalan dalam loop abadi dengan urutan sebagai berikut:
+
+Ambil daftar Board yang aktif (is_monitor=True).
+
+Gunakan Semaphore untuk membatasi jumlah koneksi paralel (misal: 20 router sekaligus).
+
+Dekripsi password menggunakan CryptoService.
+
+Login ke Mikrotik API, tarik resource, client, dan interface stats.
+
+Hitung Delta untuk data usage.
+
+Lakukan Bulk Insert/Update ke database.
+
+Tunggu (Sleep) selama 5-15 menit sebelum siklus berikutnya.
+
+KODE: workers/polling_worker.py (SKELETON UTAMA)
+
+Python
+# workers/polling_worker.py
+import asyncio
+from sqlalchemy import select
+from config.database import AsyncSessionLocal
+from models.boards import MikrotikBoard
+from services.crypto_service import crypto_manager
+from services.delta_service import delta_manager
+# Import models stats lainnya...
+
+class PollingWorker:
+    def __init__(self, limit=20):
+        self.semaphore = asyncio.Semaphore(limit)
+
+    async def fetch_router_data(self, board_id):
+        async with self.semaphore:
+            async with AsyncSessionLocal() as session:
+                # 1. Ambil detail board & kredensial
+                result = await session.execute(
+                    select(MikrotikBoard).filter_by(board_id=board_id)
+                )
+                board = result.scalar_one()
+                
+                # 2. Dekripsi password
+                raw_pwd = crypto_manager.decrypt(board.credentials.password_mikrotik_encrypted)
+                
+                try:
+                    # --- SIMULASI KONEKSI API MIKROTIK ---
+                    # api = await RouterOS.connect(board.ip_address, board.credentials.username_mikrotik, raw_pwd)
+                    # stats = await api.get_stats()
+                    
+                    # 3. Contoh Logika Perhitungan Usage (Tabel 14)
+                    # delta_rx = delta_manager.calculate_delta(stats['rx_bytes'], board.last_rx_recorded)
+                    
+                    # 4. Simpan ke DB (Bulk / Single Upsert)
+                    # ... logic insert ke board_resource_stats, board_speed_stats, dll.
+                    
+                    print(f"✅ Success polling: {board.board_name}")
+                except Exception as e:
+                    print(f"❌ Failed polling {board.board_name}: {e}")
+                finally:
+                    # Pastikan password dihapus dari memori
+                    raw_pwd = None
+
+    async def run(self):
+        while True:
+            print("🚀 Starting Polling Cycle...")
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(select(MikrotikBoard.board_id).filter_by(is_monitor=True))
+                board_ids = result.scalars().all()
+
+            # Jalankan semua secara paralel dengan limit semaphore
+            tasks = [self.fetch_router_data(bid) for bid in board_ids]
+            await asyncio.gather(*tasks)
+
+            print("😴 Cycle finished. Sleeping for 5 minutes...")
+            await asyncio.sleep(300)
+
+# Entry point untuk worker
+if __name__ == "__main__":
+    worker = PollingWorker()
+    asyncio.run(worker.run())
+ATURAN PENULISAN (PLAINTEXT READY)
+
+A. Semaphore (Concurrency Control):
+Dilarang keras menghapus asyncio.Semaphore. Tanpa ini, jika Anda punya
+500 router, Python akan mencoba membuka 500 koneksi sekaligus yang akan
+menyebabkan 'Socket Hang Up' dan membebani server database.
+
+B. Memory Safety:
+Variabel raw_pwd wajib di-set ke None di dalam blok finally. Ini
+menjamin password plaintext tidak mengendap di RAM jika terjadi error
+di tengah proses API call.
+
+C. Batch Processing:
+Sangat disarankan untuk mengumpulkan hasil stats ke dalam sebuah List,
+lalu gunakan session.add_all() atau query insert().values([...])
+untuk mengirim data ke PostgreSQL dalam satu kali jalan (Bulk Insert).
+
+OPTIMASI PERFORMANCE
+
+Jika router menggunakan VPN, gunakan kolom vpn_api (DNS) dari Tabel 5
+sebagai target host koneksi, bukan ip_address publik.
+
+Gunakan timeout=10 pada library API Mikrotik Anda. Jangan biarkan
+satu router yang lemot menahan satu slot semaphore terlalu lama.
+
+================================================================
+
+================================================================
+DOKUMEN TEKNIS: LANGKAH 9 - MONITORING (PING SWEEPER) & ALERT WORKER Project: Mikrotik Management System (Backend Python) Target: Real-time Connectivity Check & Intelligent Telegram Alerting
+
+Langkah ini mengimplementasikan Fase 3. Kita akan membuat dua script terpisah: ping_sweeper.py untuk memantau koneksi dan alert_worker.py untuk mengirimkan notifikasi cerdas ke Telegram teknisi.
+
+KODE: workers/ping_sweeper.py
+
+Script ini berjalan sangat cepat (setiap 1-2 menit) untuk memperbarui kolom is_online di database.
+
+Python
+# workers/ping_sweeper.py
+import asyncio
+import os
+from sqlalchemy import select, update
+from config.database import AsyncSessionLocal
+from models.boards import MikrotikBoard
+
+async def ping_host(hostname):
+    """Melakukan ping ICMP sederhana"""
+    # -c 1 (Linux) atau -n 1 (Windows)
+    process = await asyncio.create_subprocess_exec(
+        'ping', '-c', '1', '-W', '2', hostname,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL
+    )
+    await process.wait()
+    return process.returncode == 0
+
+async def check_all_boards():
+    async with AsyncSessionLocal() as session:
+        # Ambil semua board yang perlu dimonitor
+        result = await session.execute(select(MikrotikBoard).filter_by(is_monitor=True))
+        boards = result.scalars().all()
+        
+        for board in boards:
+            # Menggunakan IP Address atau VPN DNS sebagai target
+            target = board.ip_address
+            is_up = await ping_host(target)
+            
+            # Update hanya jika status berubah (untuk memicu Trigger Database)
+            if board.is_online != is_up:
+                board.is_online = is_up
+                board.last_ping_at = text("now()")
+                print(f"📡 Status {board.board_name} berubah menjadi {'ONLINE' if is_up else 'OFFLINE'}")
+        
+        await session.commit()
+
+async def run_sweeper():
+    while True:
+        await check_all_boards()
+        await asyncio.sleep(60) # Interval 1 menit
+
+if __name__ == "__main__":
+    asyncio.run(run_sweeper())
+KODE: workers/alert_worker.py (THE ANTI-SPAM LOGIC)
+
+Script ini memantau Tabel 10 (board_events) dan mengirimkan pesan jika router mati > 60 detik.
+
+Python
+# workers/alert_worker.py
+import asyncio
+from sqlalchemy import select
+from config.database import AsyncSessionLocal
+from models.logs import BoardEvent
+from models.boards import MikrotikBoard
+from services.telegram_service import telegram_manager
+
+async def process_alerts():
+    while True:
+        async with AsyncSessionLocal() as session:
+            # 1. Cari event 'critical' yang belum diproses (is_notified flag bisa ditambah di model)
+            # Di sini kita simulasikan pengecekan event terbaru
+            query = select(BoardEvent).filter_by(event_level='critical').order_by(BoardEvent.log_time.desc()).limit(5)
+            events = (await session.execute(query)).scalars().all()
+            
+            for event in events:
+                # 2. Cek Mode Maintenance & Status Terkini
+                board_res = await session.execute(select(MikrotikBoard).filter_by(board_id=event.board_id))
+                board = board_res.scalar_one()
+                
+                if board.is_maintenance:
+                    continue # Bypass jika sedang perbaikan
+                
+                # 3. Logika Anti-Spam (Tunggu 60 detik)
+                await asyncio.sleep(60)
+                await session.refresh(board)
+                
+                if not board.is_online:
+                    # 4. Kirim Telegram jika tetap Offline
+                    msg = f"🚨 *ALERT: ROUTER DOWN*\n\nNama: {board.board_name}\nSite: {board.site_group}\nDetail: {event.event_detail}"
+                    await telegram_manager.send_alert(board.board_id, msg)
+                    
+        await asyncio.sleep(30) # Cek setiap 30 detik
+
+if __name__ == "__main__":
+    asyncio.run(process_alerts())
+ANALISIS LOGIKA (PLAINTEXT READY)
+
+A. Trigger Dependency:
+ping_sweeper hanya perlu mengupdate kolom is_online.
+Fungsi trigger fungsi_auto_log_status di PostgreSQL akan otomatis
+membuat baris di board_events. Ini memisahkan tugas pencatatan
+dari Python ke Database (lebih efisien).
+
+B. Flapping Protection:
+alert_worker melakukan session.refresh(board) setelah sleep(60).
+Jika teknisi hanya melakukan reboot cepat, notifikasi tidak akan
+terkirim karena saat dicek ulang statusnya sudah is_online = True.
+
+C. Maintenance Bypass:
+Aturan if board.is_maintenance: continue sangat penting agar
+grup Telegram tidak berisik saat teknisi memang sedang sengaja
+mematikan router untuk perbaikan.
+
+TIPS PERFORMANCE
+
+Gunakan library aioping untuk proses ping yang lebih masif dan asinkron
+tanpa perlu memanggil subprocess ping eksternal sistem operasi.
+
+Pastikan chat_id pada tabel telegram_recipients sudah benar
+agar alert tidak salah sasaran.
+
+================================================================
+
+================================================================
+DOKUMEN TEKNIS: LANGKAH 10 - CRON JOBS & GLOBAL SYNC Project: Mikrotik Management System (Backend Python) Target: Data Persistence, Aggregation, & Automated Maintenance
+
+Langkah terakhir dalam fase coding inti ini adalah mengimplementasikan Fase 4. Kita menggunakan APScheduler untuk memastikan tugas-tugas berat dan kritis berjalan tepat waktu tanpa mengganggu proses polling utama.
+
+KODE: scheduler/cron_tasks.py
+
+Script ini berisi logika untuk "Task Force Sync" (23:55) dan "Daily Summary" (00:01).
+
+Python
+# scheduler/cron_tasks.py
+from datetime import datetime, timedelta
+from sqlalchemy import select, func, insert
+from config.database import AsyncSessionLocal
+from models.stats import BoardSpeedStat, BoardDaily_Summary, BoardClientStat
+from workers.polling_worker import PollingWorker
+
+async def task_force_sync_2355():
+    """
+    LOGIK NOMOR 17: Penarikan data terakhir sebelum router reset counter.
+    """
+    print(f"🕒 [23:55] Starting Task Force Sync...")
+    worker = PollingWorker(limit=50) # Gunakan limit lebih besar agar cepat selesai
+    await worker.run_once() # Fungsi baru di PollingWorker untuk sekali jalan
+    print("✅ Task Force Sync Completed.")
+
+async def generate_daily_summary():
+    """
+    LOGIK NOMOR 9: Merangkum data mentah hari kemarin.
+    """
+    yesterday = datetime.now().date() - timedelta(days=1)
+    print(f"📊 [00:01] Generating Summary for {yesterday}...")
+    
+    async with AsyncSessionLocal() as session:
+        # Contoh Query: Ambil rata-rata download per board dari hari kemarin
+        query = select(
+            BoardSpeedStat.board_id,
+            func.avg(BoardSpeedStat.download_mbps).label('avg_dn'),
+            func.max(BoardSpeedStat.download_mbps).label('max_dn')
+        ).filter(func.date(BoardSpeedStat.log_time) == yesterday).group_by(BoardSpeedStat.board_id)
+        
+        results = (await session.execute(query)).all()
+        
+        for row in results:
+            new_summary = BoardDaily_Summary(
+                board_id=row.board_id,
+                avg_download=row.avg_dn,
+                max_download=row.max_dn,
+                log_date=yesterday
+            )
+            session.add(new_summary)
+        
+        await session.commit()
+    print("✅ Daily Summary Generated.")
+KODE: main.py (ENTRY POINT & SCHEDULER REGISTRATION)
+
+File ini adalah yang Anda jalankan (python main.py). Ia akan menyalakan semua worker dan scheduler secara bersamaan.
+
+Python
+# main.py
+import asyncio
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from workers.polling_worker import PollingWorker
+from workers.ping_sweeper import run_sweeper
+from scheduler.cron_tasks import task_force_sync_2355, generate_daily_summary
+
+async def main():
+    scheduler = AsyncIOScheduler()
+    
+    # 1. Daftarkan Task Force Sync (23:55)
+    scheduler.add_job(task_force_sync_2355, 'cron', hour=23, minute=55)
+    
+    # 2. Daftarkan Daily Summary (00:01)
+    scheduler.add_job(generate_daily_summary, 'cron', hour=0, minute=1)
+    
+    scheduler.start()
+    
+    # 3. Jalankan Worker Utama secara bersamaan
+    polling = PollingWorker()
+    
+    print("🔥 Backend System is Running...")
+    await asyncio.gather(
+        polling.run(),      # Loop setiap 5-15 menit
+        run_sweeper(),      # Loop setiap 1 menit
+    )
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("👋 System Shutdown.")
+ANALISIS LOGIKA (PLAINTEXT READY)
+
+A. Pre-Reset Safety:
+Eksekusi pukul 23:55 adalah "Jaring Pengaman". Jika router melakukan
+reset counter tepat pukul 00:00, kita sudah mengamankan data pemakaian
+terakhir di database.
+
+B. Database Clean-up (Retention):
+Anda bisa menambahkan satu job lagi di pukul 02:00 pagi untuk menghapus
+data raw (Tabel 7, 8) yang sudah lebih dari 30 hari agar database
+tetap ramping (tidak terjadi bloat).
+
+C. Transactional Integrity:
+Gunakan session.begin() saat melakukan agregasi summary. Jika proses
+summary gagal di tengah jalan, database tidak akan menyimpan data
+setengah jadi (mencegah duplikasi atau data korup).
+
+IMPLEMENTASI LOGIK 16 (LOYALTY FILTER)
+
+Job untuk Hotspot Loyalty (Tabel 16b) sebaiknya dijadwalkan setiap tanggal 1 bulan baru pukul 01:00 pagi. Ia akan menghitung frequency_days dari hotspot_usage_raw dan memindahkannya ke hotspot_usage_monthly.
+
+================================================================
+
+================================================================
+DOKUMEN TEKNIS: LANGKAH 11 - DATABASE OPTIMIZATION & MAINTENANCE Project: Mikrotik Management System (Backend Python) Target: Query Speed, Storage Efficiency, & Index Management
+
+Langkah ini fokus pada menjaga performa PostgreSQL tetap stabil meskipun data statistik (Tabel 6, 7, 8) sudah mencapai jutaan baris. Tanpa langkah ini, Dashboard Anda akan melambat (lemot) setelah sistem berjalan 1-2 bulan.
+
+PENERAPAN INDEXING STRATEGIS
+
+Index membuat pencarian data cepat, namun terlalu banyak index memperlambat proses INSERT. Kita harus memilih kolom yang paling sering digunakan dalam klausa WHERE.
+
+Wajib ditambahkan pada database:
+
+Time-Series Index: Pada kolom log_time di Tabel 6, 7, 8.
+
+Foreign Key Index: Pada kolom board_id.
+
+Composite Index: (Gabungan board_id + log_time) untuk mempercepat penarikan grafik per router.
+
+SQL
+-- Contoh perintah SQL yang bisa dijalankan via Python (Alembic/Migration)
+CREATE INDEX idx_speed_board_time ON board_speed_stats (board_id, log_time DESC);
+CREATE INDEX idx_resource_board_time ON board_resource_stats (board_id, log_time DESC);
+DATA RETENTION POLICY (PEMBERSIHAN OTOMATIS)
+
+Data real-time (per detik/menit) tidak perlu disimpan selamanya. Setelah dirangkum ke board_daily_summary, data mentah bisa dihapus.
+
+KODE: scheduler/cron_tasks.py (Tambahan)
+
+Python
+async def data_retention_cleanup():
+    """
+    Menghapus data statistik lama yang sudah tidak diperlukan.
+    Data mentah (raw) dihapus setelah 30 hari.
+    """
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    print(f"🧹 [02:00] Cleaning up raw data older than {thirty_days_ago}...")
+    
+    async with AsyncSessionLocal() as session:
+        # Hapus data mentah yang sudah ter-agregasi
+        await session.execute(
+            text("DELETE FROM board_speed_stats WHERE log_time < :limit"),
+            {"limit": thirty_days_ago}
+        )
+        await session.execute(
+            text("DELETE FROM board_resource_stats WHERE log_time < :limit"),
+            {"limit": thirty_days_ago}
+        )
+        await session.commit()
+    print("✅ Cleanup finished.")
+ANALISIS TABEL (ANALYZE & VACUUM)
+
+PostgreSQL menggunakan sistem MVCC yang meninggalkan "sampah" (dead tuples) setiap kali Anda melakukan UPDATE atau DELETE.
+
+ANALYZE: Memperbarui statistik tabel agar Query Planner memilih jalur tercepat.
+
+VACUUM: Membersihkan ruang penyimpanan dari data yang sudah dihapus.
+
+Saran Konfigurasi (PostgreSQL Side):
+Pastikan fitur autovacuum aktif. Namun, untuk tabel yang sangat aktif (seperti board_speed_stats), Anda bisa memicu ANALYZE secara manual via Cron Job Python setiap minggu.
+
+PARTITIONING (OPSIONAL UNTUK SKALA BESAR)
+
+Jika Anda mengelola >500 router, pertimbangkan menggunakan Table Partitioning berdasarkan bulan.
+
+board_speed_stats_2024_05
+
+board_speed_stats_2024_06
+Ini memastikan PostgreSQL tidak perlu memindai seluruh data dari awal tahun hanya untuk mencari data hari ini.
+
+PENGGUNAAN CACHING (REDIS - NEXT LEVEL)
+
+Untuk status "Online/Offline" atau "Uptime Terakhir", jangan selalu bertanya ke PostgreSQL.
+
+Simpan status terakhir di Redis (In-Memory Database).
+
+Dashboard mengambil status dari Redis (0.1ms).
+
+Worker mengupdate Redis setiap kali status berubah.
+
+================================================================
+
+================================================================
+DOKUMEN TEKNIS: LANGKAH 12 - API LAYER (FASTAPI) Project: Mikrotik Management System (Backend Python) Target: Data Delivery for Dashboard & External Integration
+
+Setelah "mesin" (Worker) pengisi database selesai, kita perlu membangun API Layer. Kita menggunakan FastAPI karena mendukung asinkron secara native, sangat cepat, dan otomatis menghasilkan dokumentasi (Swagger UI).
+
+INSTALASI & PERSIAPAN
+
+Jalankan di virtual environment Anda:
+pip install fastapi uvicorn pydantic
+
+KODE: main_api.py (STRUKTUR ENTRY POINT)
+
+File ini berfungsi sebagai pintu gerbang utama bagi Frontend untuk mengambil data.
+
+Python
+# main_api.py
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from typing import List
+
+from config.database import get_db
+from models.boards import MikrotikBoard
+from models.stats import BoardSpeedStat
+# Import skema Pydantic (kita buat di bawah)
+from schemas.board_schema import BoardRead, TrafficRead
+
+app = FastAPI(title="Mikrotik Management API")
+
+@app.get("/boards", response_model=List[BoardRead])
+async def list_all_boards(db: AsyncSession = Depends(get_db)):
+    """Mengambil daftar semua router dan status online-nya"""
+    result = await db.execute(select(MikrotikBoard))
+    return result.scalars().all()
+
+@app.get("/boards/{board_id}/traffic", response_model=List[TrafficRead])
+async def get_traffic_stats(board_id: str, limit: int = 20, db: AsyncSession = Depends(get_db)):
+    """Mengambil data traffic terakhir untuk grafik Dashboard"""
+    query = (
+        select(BoardSpeedStat)
+        .filter_by(board_id=board_id)
+        .order_by(BoardSpeedStat.log_time.desc())
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    return result.scalars().all()
+KODE: schemas/board_schema.py (VALIDASI DATA)
+
+Pydantic memastikan data yang dikirim ke Frontend memiliki format yang benar dan aman (tidak membocorkan password).
+
+Python
+# schemas/board_schema.py
+from pydantic import BaseModel
+from uuid import UUID
+from datetime import datetime
+from typing import Optional
+
+class BoardRead(BaseModel):
+    board_id: UUID
+    board_name: str
+    ip_address: str
+    is_online: bool
+    last_ping_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+class TrafficRead(BaseModel):
+    interface_name: str
+    download_mbps: float
+    upload_mbps: float
+    log_time: datetime
+
+    class Config:
+        from_attributes = True
+FITUR UNGGULAN API LAYER
+
+A. Automatic Documentation (Swagger):
+Setelah menjalankan aplikasi, Anda dapat mengakses http://localhost:8000/docs
+untuk mencoba semua endpoint secara interaktif tanpa perlu aplikasi luar seperti Postman.
+
+B. Data Filtering & Security:
+Perhatikan bahwa model BoardRead tidak menyertakan password.
+Ini adalah "tembok" keamanan agar kredensial router tidak pernah keluar
+dari backend menuju browser pengguna.
+
+C. Response Speed:
+Karena menggunakan AsyncSession, API ini dapat menangani ribuan permintaan
+grafik traffic secara bersamaan tanpa membuat database "hang".
+
+CARA MENJALANKAN API
+
+Gunakan uvicorn (ASGI Server) untuk menjalankan API:
+uvicorn main_api:app --reload --port 8000
+
+PENANGANAN CORS (PENTING UNTUK DASHBOARD)
+
+Jika Dashboard (React/Vue/HTML) berada di domain yang berbeda, Anda harus menambahkan middleware CORS agar API bisa diakses:
+
+Python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Sesuaikan dengan domain dashboard Anda
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+================================================================
+
+================================================================
+DOKUMEN TEKNIS: LANGKAH 13 - CONTAINERIZATION (DOCKER) Project: Mikrotik Management System (Backend Python) Target: Deployment Consistency, Scalability, & Isolation
+
+Langkah terakhir ini akan membungkus seluruh aplikasi (Worker, API, dan Database) ke dalam "kontainer". Dengan Docker, Anda tidak perlu lagi khawatir tentang perbedaan versi Python atau library di server produksi. Semuanya akan berjalan persis sama dengan di komputer Anda.
+
+KODE: Dockerfile
+
+Buat file bernama Dockerfile (tanpa ekstensi) di root folder proyek. Ini adalah instruksi untuk membangun image aplikasi Python Anda.
+
+Dockerfile
+# Gunakan base image Python yang ringan
+FROM python:3.11-slim
+
+# Set working directory di dalam kontainer
+WORKDIR /app
+
+# Instal dependensi sistem yang dibutuhkan (untuk library networking/db)
+RUN apt-get update && apt-get install -y \
+    iputils-ping \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy file requirements terlebih dahulu (untuk caching layer)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy seluruh kode proyek ke dalam kontainer
+COPY . .
+
+# Jalankan skrip utama (default ke main.py yang menjalankan worker & scheduler)
+CMD ["python", "main.py"]
+KODE: docker-compose.yml
+
+File ini mengatur orkestrasi antara database PostgreSQL dan dua layanan Python kita (Worker & API).
+
+YAML
+version: '3.8'
+
+services:
+  # Database PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: mikrotik_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # Backend Worker (Polling, Ping, Alert)
+  worker:
+    build: .
+    container_name: mikrotik_worker
+    restart: always
+    depends_on:
+      - db
+    env_file:
+      - .env
+    command: python main.py
+
+  # API Layer (FastAPI)
+  api:
+    build: .
+    container_name: mikrotik_api
+    restart: always
+    depends_on:
+      - db
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    command: uvicorn main_api:app --host 0.0.0.0 --port 8000
+
+volumes:
+  postgres_data:
+KEUNTUNGAN MENGGUNAKAN DOCKER (PLAINTEXT READY)
+
+A. Dependency Isolation:
+Semua library seperti asyncpg dan cryptography terkunci di dalam
+image. Update OS di server tidak akan merusak aplikasi Anda.
+
+B. Data Persistence:
+Menggunakan volumes pada PostgreSQL memastikan data statistik
+Anda tidak hilang meskipun kontainer dihentikan atau dihapus.
+
+C. Network Bridge:
+Docker membuat jaringan internal. Aplikasi Python Anda bisa memanggil
+database cukup dengan host db (sesuai nama service di compose),
+bukan lagi 127.0.0.1.
+
+CARA DEPLOY (QUICK START)
+
+Setelah file Dockerfile dan docker-compose.yml siap:
+
+Pastikan file .env sudah benar.
+
+Jalankan perintah:
+docker-compose up -d --build
+
+Cek status kontainer:
+docker ps
+
+Lihat log jika ada masalah:
+docker logs -f mikrotik_worker
+
+LOGIKA PRODUKSI (SCALING)
+
+Jika beban kerja polling bertambah besar, Anda bisa menambah jumlah worker dengan perintah:
+docker-compose up -d --scale worker=3
+(Catatan: Pastikan logika worker Anda mendukung distribusi task, misalnya menggunakan Task Queue seperti Celery/Redis agar antar worker tidak menarik router yang sama).
+
+================================================================

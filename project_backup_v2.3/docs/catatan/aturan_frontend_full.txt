@@ -1,0 +1,96 @@
+================================================================
+DOKUMEN ATURAN TEKNIS: FRONTEND DEVELOPMENT RULES
+Project: Mikrotik Management System
+Status: STRICT MODE (Wajib Patuh)
+================================================================
+
+ATURAN 1: ARSITEKTUR KOMPONEN (REACT BEST PRACTICE)
+----------------------------------------------------------------
+1. FUNCTIONAL COMPONENTS ONLY
+   - DILARANG KERAS menggunakan Class Components.
+   - Gunakan Hooks (useState, useEffect, useContext) untuk logic.
+   - Alasan: Performa lebih baik, kode lebih ringkas, dan standar modern React.
+
+2. COMPONENT STRUCTURE
+   - Satu file = Satu komponen utama (PascalCase).
+   - Nama file harus sama dengan nama komponen (contoh: `RouterCard.jsx`).
+   - Pisahkan logic yang kompleks ke dalam Custom Hooks (`useRouterData.js`) agar UI tetap bersih.
+
+3. PROPS VALIDATION
+   - Setiap komponen yang menerima props WAJIB memiliki validasi.
+   - Gunakan `PropTypes` (jika JS) atau `Interface` (jika TS).
+   - Berikan `defaultProps` untuk props yang bersifat opsional.
+
+================================================================
+
+ATURAN 2: STYLING & DESAIN (TAILWIND CSS)
+----------------------------------------------------------------
+1. NO INLINE STYLES
+   - DILARANG menggunakan style={{ ... }} kecuali untuk nilai dinamis (seperti width % pada progress bar).
+   - Semua styling statis WAJIB menggunakan utility classes Tailwind.
+
+2. KONSISTENSI WARNA & SPACING
+   - Gunakan palet warna standar Tailwind (misal: bg-blue-600, text-red-500).
+   - Gunakan spacing standar (p-4, m-2, gap-4). Jangan membuat nilai pixel manual (w-[357px]) kecuali sangat terpaksa.
+
+3. RESPONSIVE DESIGN (MOBILE FIRST)
+   - Desain harus bisa dibaca di layar HP (Mobile) maupun Desktop.
+   - Gunakan prefix `md:`, `lg:` untuk mengatur tampilan di layar besar.
+   - Contoh: `grid-cols-1 md:grid-cols-3` (1 kolom di HP, 3 kolom di Desktop).
+
+================================================================
+
+ATURAN 3: INTERAKSI PENGGUNA (HCI & UX)
+----------------------------------------------------------------
+1. VISIBILITY OF SYSTEM STATUS (LOADING STATE)
+   - DILARANG membiarkan layar kosong/freeze saat mengambil data.
+   - WAJIB menampilkan `LoadingSpinner` atau `SkeletonLoader` saat fetching API.
+   - Tombol Submit harus disabled dan menampilkan indikator loading saat proses pengiriman data.
+
+2. ERROR PREVENTION (KONFIRMASI AKSI)
+   - Tombol destruktif (Hapus, Reset, Reboot) WAJIB memicu Modal Konfirmasi.
+   - User harus menekan "Ya, Saya Yakin" sebelum aksi dieksekusi.
+   - Dilarang mengeksekusi aksi destruktif hanya dengan satu kali klik.
+
+3. FEEDBACK MECHANISM (TOAST NOTIFICATION)
+   - Setiap aksi sukses WAJIB menampilkan Toast Hijau ("Berhasil disimpan").
+   - Setiap aksi gagal WAJIB menampilkan Toast Merah ("Gagal: Server Error").
+   - Jangan gunakan `window.alert()`, gunakan komponen Toast yang non-blocking.
+
+================================================================
+
+ATURAN 4: INTEGRASI API & DATA (SERVICE LAYER)
+----------------------------------------------------------------
+1. SERVICE LAYER PATTERN
+   - DILARANG memanggil `axios.get()` atau `fetch()` langsung di dalam komponen UI.
+   - Buat file terpisah di folder `src/services/` (misal: `authService.js`).
+   - Komponen hanya boleh memanggil fungsi service (contoh: `AuthService.login(data)`).
+
+2. ERROR HANDLING TERPUSAT
+   - Gunakan `try-catch` atau `.catch()` di level service atau hooks.
+   - Jangan biarkan aplikasi crash (White Screen of Death) karena satu request gagal.
+   - Gunakan Error Boundary untuk menangkap error rendering komponen.
+
+3. DATA CACHING (OPSIONAL TAPI DIANJURKAN)
+   - Gunakan library seperti `React Query` (TanStack Query) atau `SWR`.
+   - Hindari mengambil data yang sama berulang-ulang setiap kali komponen di-render (re-fetching hell).
+
+================================================================
+
+ATURAN 5: KEAMANAN FRONTEND (SECURITY)
+----------------------------------------------------------------
+1. TOKEN STORAGE
+   - Simpan JWT Token di tempat yang aman (LocalStorage boleh untuk MVP, HttpOnly Cookie lebih disarankan untuk Production).
+   - Jangan simpan password user atau kredensial sensitif di LocalStorage/SessionStorage.
+
+2. AUTO LOGOUT
+   - Jika API mengembalikan status 401 (Unauthorized), aplikasi WAJIB otomatis menghapus token dan melempar user ke halaman Login.
+   - Jangan biarkan user terjebak di halaman dashboard dengan token kadaluarsa.
+
+3. INPUT SANITIZATION
+   - React secara default melakukan escaping XSS, namun hati-hati saat menggunakan `dangerouslySetInnerHTML`.
+   - Hindari fitur tersebut kecuali Anda benar-benar tahu konten HTML-nya aman.
+
+================================================================
+AKHIR DOKUMEN ATURAN FRONTEND
+================================================================

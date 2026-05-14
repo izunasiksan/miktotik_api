@@ -1,0 +1,136 @@
+NOMOR 4 USER BOARD ACCESS
+User Router Access Mapping (RBAC)
+
+Tabel user_board_access menyimpan hubungan antara user sistem
+dan router Mikrotik yang dapat diakses oleh user tersebut.
+
+Tabel ini digunakan untuk mengatur hak akses router berdasarkan
+pengguna. Dengan mekanisme ini, tidak semua user dapat mengakses
+semua router yang ada di sistem.
+
+Relasi ini merupakan implementasi kontrol akses berbasis user
+terhadap perangkat router.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE user_board_access (
+    access_id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES master_users(user_id) ON DELETE CASCADE,
+    board_id UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    granted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_access UNIQUE(user_id, board_id)
+);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+access_id
+Tipe: SERIAL
+
+Primary key untuk setiap data akses user terhadap router.
+
+Nilai akan bertambah otomatis setiap kali data baru
+ditambahkan ke dalam tabel.
+
+------------------------------------------------------------
+
+user_id
+Tipe: UUID
+
+Foreign key yang menghubungkan akses ini dengan user
+pada tabel master_users.
+
+Relasi:
+
+user_board_access.user_id
+→ master_users.user_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika user dihapus dari tabel master_users,
+maka seluruh data akses router yang dimiliki user
+tersebut juga akan ikut dihapus.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan akses ini dengan router
+pada tabel mikrotik_boards.
+
+Relasi:
+
+user_board_access.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari tabel mikrotik_boards,
+maka data akses user terhadap router tersebut juga
+akan dihapus secara otomatis.
+
+------------------------------------------------------------
+
+granted_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika akses router diberikan kepada user.
+
+Nilai otomatis diisi oleh database menggunakan
+CURRENT_TIMESTAMP saat data dibuat.
+
+Contoh nilai:
+2026-03-06 21:30:00+07
+
+============================================================
+CONSTRAINT YANG DIGUNAKAN
+============================================================
+
+unique_access
+
+Constraint ini memastikan bahwa kombinasi user_id
+dan board_id tidak dapat muncul lebih dari satu kali
+dalam tabel.
+
+Artinya satu user hanya dapat memiliki satu entri
+akses untuk satu router tertentu.
+
+Contoh yang tidak diperbolehkan:
+
+user_id = A
+board_id = R1
+
+user_id = A
+board_id = R1
+
+Data seperti ini akan ditolak oleh database.
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_user_board_access_user_id
+
+Index pada kolom:
+user_id
+
+Digunakan untuk mempercepat pencarian router
+yang dapat diakses oleh user tertentu.
+
+------------------------------------------------------------
+
+idx_user_board_access_board_id
+
+Index pada kolom:
+board_id
+
+Digunakan untuk mempercepat pencarian user
+yang memiliki akses ke router tertentu.

@@ -1,0 +1,45 @@
+# Reference only - in Production use Patroni or Cloud SQL
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mikrotik-db
+spec:
+  serviceName: "mikrotik-db"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mikrotik-db
+  template:
+    metadata:
+      labels:
+        app: mikrotik-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        envFrom:
+        - secretRef:
+            name: mikrotik-secrets
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mikrotik-db
+spec:
+  ports:
+  - port: 5432
+  selector:
+    app: mikrotik-db

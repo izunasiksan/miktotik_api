@@ -1,0 +1,133 @@
+NOMOR 1: MASTER USERS
+Login & Access Management
+
+Tabel master_users menyimpan akun pengguna yang dapat mengakses sistem.
+Tabel ini digunakan untuk autentikasi login, identifikasi pengguna, serta
+referensi user pada modul lain seperti akses router, automation job,
+dan audit log.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE master_users (
+    user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name VARCHAR(100),
+    role VARCHAR(20) DEFAULT 'teknisi',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+user_id
+Tipe: UUID
+
+Primary key yang digunakan sebagai identitas unik setiap user.
+Nilai dibuat otomatis menggunakan uuid_generate_v4() sehingga setiap
+user memiliki ID yang unik dan tidak bergantung pada urutan angka.
+
+------------------------------------------------------------
+
+username
+Tipe: VARCHAR(50)
+
+Username yang digunakan untuk login ke sistem.
+
+Constraint:
+- UNIQUE
+- NOT NULL
+
+Artinya setiap username harus unik dan tidak boleh kosong.
+
+------------------------------------------------------------
+
+password_hash
+Tipe: TEXT
+
+Kolom ini menyimpan password yang sudah di-hash.
+Password tidak disimpan dalam bentuk teks asli.
+
+Isi kolom biasanya berupa hash dari algoritma seperti bcrypt
+atau argon2.
+
+Contoh nilai:
+$2b$12$xxxxxxxxxxxxxxxxxxxxxxxx
+
+------------------------------------------------------------
+
+full_name
+Tipe: VARCHAR(100)
+
+Menyimpan nama lengkap pengguna sistem.
+Kolom ini bersifat opsional dan digunakan untuk identitas
+atau tampilan pada sistem.
+
+------------------------------------------------------------
+
+role
+Tipe: VARCHAR(20)
+
+Menentukan jenis akses user pada sistem.
+
+Nilai default:
+teknisi
+
+Contoh nilai yang digunakan dalam sistem:
+
+admin   : akses penuh sistem
+teknisi : pengelolaan dan monitoring router
+viewer  : hanya melihat monitoring
+
+Role ini biasanya digunakan oleh backend untuk menentukan
+hak akses pengguna.
+
+------------------------------------------------------------
+
+is_active
+Tipe: BOOLEAN
+
+Menunjukkan status aktif akun user.
+
+Nilai default:
+TRUE
+
+TRUE  : user aktif dan dapat menggunakan sistem
+FALSE : user dinonaktifkan
+
+User yang dinonaktifkan tetap berada di database tetapi tidak
+dapat menggunakan sistem.
+
+------------------------------------------------------------
+
+created_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika akun user dibuat.
+
+Nilai otomatis diisi oleh database menggunakan:
+CURRENT_TIMESTAMP
+
+Contoh nilai waktu:
+2026-03-06 20:10:00+07
+
+============================================================
+PERAN TABEL DALAM SISTEM
+============================================================
+
+Tabel master_users berfungsi sebagai sumber identitas pengguna sistem.
+
+Tabel ini direferensikan oleh beberapa tabel lain dalam database,
+diantaranya:
+
+- user_board_access
+- automation_jobs
+- audit_logs
+- telegram_recipients
+
+Relasi ini memungkinkan sistem mengetahui user yang melakukan
+aktivitas tertentu atau memiliki akses terhadap resource tertentu.

@@ -1,0 +1,347 @@
+NOMOR 12 TELEGRAM ALERT SYSTEM
+Telegram Notification & Alert Configuration
+
+Sistem Telegram Alert digunakan untuk
+mengirimkan notifikasi otomatis dari
+sistem monitoring router ke pengguna
+melalui aplikasi Telegram.
+
+Sistem ini memungkinkan administrator
+untuk menentukan bot Telegram yang
+digunakan serta menentukan penerima
+notifikasi berdasarkan router dan
+tingkat keparahan event.
+
+Struktur sistem ini terdiri dari
+dua tabel utama:
+
+telegram_bots
+telegram_recipients
+
+Tabel telegram_bots menyimpan
+konfigurasi bot Telegram yang
+digunakan oleh sistem.
+
+Tabel telegram_recipients menyimpan
+daftar penerima notifikasi beserta
+pengaturan router yang dipantau.
+
+============================================================
+TABEL TELEGRAM BOTS
+============================================================
+
+Tabel telegram_bots menyimpan
+informasi bot Telegram yang
+digunakan untuk mengirim notifikasi.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE telegram_bots (
+    bot_id     SERIAL PRIMARY KEY,
+    bot_name   VARCHAR(100) NOT NULL,
+    bot_token  TEXT NOT NULL,
+    is_active  BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+bot_id
+Tipe: SERIAL
+
+Identifier unik untuk setiap
+bot Telegram yang digunakan
+oleh sistem.
+
+Nilai dihasilkan otomatis
+oleh database.
+
+------------------------------------------------------------
+
+bot_name
+Tipe: VARCHAR(100)
+
+Menyimpan nama bot Telegram
+yang digunakan untuk sistem
+notifikasi.
+
+Contoh nilai:
+
+Network Alert Bot
+Router Monitoring Bot
+
+------------------------------------------------------------
+
+bot_token
+Tipe: TEXT
+
+Menyimpan token autentikasi
+bot Telegram yang diberikan
+oleh layanan Telegram Bot API.
+
+Token ini digunakan oleh
+backend untuk mengirim pesan
+ke pengguna melalui Telegram.
+
+------------------------------------------------------------
+
+is_active
+Tipe: BOOLEAN
+
+Menunjukkan apakah bot
+Telegram aktif digunakan
+oleh sistem.
+
+Nilai default:
+
+TRUE
+
+Jika bernilai FALSE maka
+bot tidak akan digunakan
+untuk mengirim notifikasi.
+
+------------------------------------------------------------
+
+created_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika
+konfigurasi bot dibuat
+di dalam sistem.
+
+Nilai default:
+
+CURRENT_TIMESTAMP
+
+============================================================
+TABEL TELEGRAM RECIPIENTS
+============================================================
+
+Tabel telegram_recipients menyimpan
+daftar penerima notifikasi Telegram
+untuk setiap router yang dimonitor.
+
+Tabel ini menghubungkan bot Telegram,
+router, serta pengguna yang akan
+menerima pesan alert.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE telegram_recipients (
+    recipient_id SERIAL PRIMARY KEY,
+    user_id      UUID REFERENCES master_users(user_id) ON DELETE CASCADE,
+    bot_id       INT REFERENCES telegram_bots(bot_id) ON DELETE CASCADE,
+    board_id     UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    chat_id      BIGINT NOT NULL,
+    alert_levels TEXT[] DEFAULT '{critical}',
+    is_active    BOOLEAN DEFAULT TRUE,
+    CONSTRAINT unique_mapping UNIQUE(bot_id, board_id, chat_id)
+);
+
+CREATE INDEX idx_telegram_recipients_user_id
+ON telegram_recipients(user_id);
+
+CREATE INDEX idx_telegram_recipients_board_id
+ON telegram_recipients(board_id);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+recipient_id
+Tipe: SERIAL
+
+Identifier unik untuk setiap
+konfigurasi penerima notifikasi.
+
+Nilai dihasilkan otomatis oleh
+database.
+
+------------------------------------------------------------
+
+user_id
+Tipe: UUID
+
+Foreign key yang menghubungkan
+penerima notifikasi dengan user
+pada tabel master_users.
+
+Relasi:
+
+telegram_recipients.user_id
+→ master_users.user_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika user dihapus dari
+tabel master_users maka data
+konfigurasi notifikasi yang
+terkait juga akan ikut terhapus.
+
+------------------------------------------------------------
+
+bot_id
+Tipe: INT
+
+Foreign key yang merujuk pada
+bot Telegram yang digunakan
+untuk mengirim notifikasi.
+
+Relasi:
+
+telegram_recipients.bot_id
+→ telegram_bots.bot_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Jika bot dihapus dari tabel
+telegram_bots maka seluruh
+konfigurasi penerima yang
+menggunakan bot tersebut
+juga akan ikut terhapus.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang merujuk pada
+router yang dipantau oleh
+sistem monitoring.
+
+Relasi:
+
+telegram_recipients.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Jika router dihapus dari
+tabel mikrotik_boards maka
+konfigurasi notifikasi untuk
+router tersebut juga akan
+dihapus.
+
+------------------------------------------------------------
+
+chat_id
+Tipe: BIGINT
+
+Menyimpan identifier chat
+Telegram yang menjadi tujuan
+pengiriman pesan alert.
+
+Nilai ini biasanya diperoleh
+dari Telegram Bot API.
+
+Contoh nilai:
+
+123456789
+987654321
+
+------------------------------------------------------------
+
+alert_levels
+Tipe: TEXT[]
+
+Menyimpan daftar tingkat
+keparahan event yang akan
+dikirim sebagai notifikasi.
+
+Nilai disimpan dalam bentuk
+array teks.
+
+Nilai default:
+
+{critical}
+
+Contoh nilai:
+
+{critical}
+{warning,critical}
+{info,warning,critical}
+
+Kolom ini memungkinkan sistem
+untuk mengirim notifikasi
+hanya pada level event tertentu.
+
+------------------------------------------------------------
+
+is_active
+Tipe: BOOLEAN
+
+Menunjukkan apakah penerima
+notifikasi masih aktif.
+
+Nilai default:
+
+TRUE
+
+Jika bernilai FALSE maka
+penerima tidak akan menerima
+notifikasi meskipun event
+terjadi.
+
+============================================================
+UNIQUE CONSTRAINT
+============================================================
+
+unique_mapping
+
+Constraint ini memastikan bahwa
+tidak ada duplikasi konfigurasi
+notifikasi untuk kombinasi:
+
+bot_id
+board_id
+chat_id
+
+Artinya satu bot tidak dapat
+mengirim notifikasi yang sama
+ke chat yang sama untuk router
+yang sama lebih dari satu kali.
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_telegram_recipients_user_id
+
+Index pada kolom:
+
+user_id
+
+Digunakan untuk mempercepat
+query yang mencari konfigurasi
+notifikasi berdasarkan user.
+
+------------------------------------------------------------
+
+idx_telegram_recipients_board_id
+
+Index pada kolom:
+
+board_id
+
+Digunakan untuk mempercepat
+query yang mengambil daftar
+penerima notifikasi berdasarkan
+router yang dipantau.
+
+Contoh penggunaan query:
+
+- menentukan penerima alert router
+- mengirim notifikasi gangguan
+- manajemen konfigurasi notifikasi

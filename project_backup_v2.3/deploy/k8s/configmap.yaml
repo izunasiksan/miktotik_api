@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mikrotik-api-config
+data:
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "db_master_mikrotik"
+  DB_USER: "postgres"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  POLLING_INTERVAL_MINUTES: "5"
+  MAX_WORKER_PARALLEL: "20"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "11520"

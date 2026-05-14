@@ -1,0 +1,334 @@
+NOMOR 9A BOARD INTERFACE DAILY SUMMARY
+Router Interface Daily Monitoring Aggregation
+
+Tabel board_interface_daily_summary menyimpan
+data ringkasan monitoring harian traffic jaringan
+untuk setiap interface pada router Mikrotik.
+
+Data pada tabel ini merupakan hasil agregasi
+dari data monitoring traffic yang dikumpulkan
+sepanjang hari pada masing-masing interface
+router.
+
+Ringkasan ini memungkinkan sistem untuk
+menganalisis performa jaringan per port
+tanpa harus membaca seluruh data monitoring
+traffic yang tersimpan secara detail.
+
+Setiap interface pada router hanya memiliki
+satu data ringkasan untuk setiap tanggal.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE board_interface_daily_summary (
+    summary_id           SERIAL PRIMARY KEY,
+    board_id             UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    interface_name       VARCHAR(100) NOT NULL,
+    
+    avg_download_mbps    NUMERIC(15,2),
+    max_download_mbps    NUMERIC(15,2),
+    p95_download_mbps    NUMERIC(15,2),
+    
+    avg_upload_mbps      NUMERIC(15,2),
+    max_upload_mbps      NUMERIC(15,2),
+    
+    accuracy_pct         NUMERIC(5,2) DEFAULT 100.00,
+    log_date             DATE NOT NULL,
+    created_at           TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_interface_daily UNIQUE(board_id, interface_name, log_date)
+);
+
+CREATE INDEX idx_interface_summary_lookup
+ON board_interface_daily_summary (board_id, interface_name, log_date DESC);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+summary_id
+Tipe: SERIAL
+
+Identifier unik untuk setiap data ringkasan
+traffic harian pada interface router.
+
+Nilai dihasilkan otomatis oleh database
+setiap kali proses agregasi harian dibuat.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan data ringkasan
+traffic interface dengan router pada tabel
+mikrotik_boards.
+
+Relasi:
+
+board_interface_daily_summary.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari tabel
+mikrotik_boards maka seluruh data ringkasan
+interface yang terkait dengan router tersebut
+akan ikut terhapus.
+
+------------------------------------------------------------
+
+interface_name
+Tipe: VARCHAR(100)
+
+Menyimpan nama interface pada router
+yang menjadi sumber data traffic.
+
+Contoh nama interface:
+
+ether1
+ether2
+sfp1
+bridge
+pppoe-out1
+
+Kolom ini wajib diisi karena setiap
+ringkasan traffic harus terhubung
+dengan interface tertentu.
+
+------------------------------------------------------------
+
+avg_download_mbps
+Tipe: NUMERIC(15,2)
+
+Menyimpan rata-rata kecepatan download
+traffic pada interface selama satu hari.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+max_download_mbps
+Tipe: NUMERIC(15,2)
+
+Menyimpan nilai kecepatan download
+tertinggi yang tercatat pada interface
+selama satu hari.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+p95_download_mbps
+Tipe: NUMERIC(15,2)
+
+Menyimpan nilai percentile ke-95 dari
+kecepatan download pada interface.
+
+Nilai ini menggambarkan tingkat
+penggunaan bandwidth pada kondisi
+hampir maksimum tanpa dipengaruhi
+oleh lonjakan traffic yang sangat
+singkat.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+avg_upload_mbps
+Tipe: NUMERIC(15,2)
+
+Menyimpan rata-rata kecepatan upload
+traffic pada interface selama satu hari.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+max_upload_mbps
+Tipe: NUMERIC(15,2)
+
+Menyimpan nilai kecepatan upload
+tertinggi yang tercatat pada interface
+selama satu hari.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+accuracy_pct
+Tipe: NUMERIC(5,2)
+
+Menyimpan persentase tingkat akurasi
+data agregasi harian.
+
+Nilai default:
+100.00
+
+Kolom ini digunakan sebagai metadata
+untuk menunjukkan tingkat keakuratan
+data yang dihasilkan dari proses
+agregasi monitoring.
+
+------------------------------------------------------------
+
+log_date
+Tipe: DATE
+
+Menyimpan tanggal data monitoring
+yang dirangkum dalam tabel ini.
+
+Setiap kombinasi router, interface,
+dan tanggal hanya dapat memiliki
+satu data ringkasan.
+
+Contoh nilai:
+2026-03-06
+
+------------------------------------------------------------
+
+created_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika data ringkasan
+harian interface dibuat oleh sistem.
+
+Nilai default:
+CURRENT_TIMESTAMP
+
+============================================================
+UNIQUE CONSTRAINT
+============================================================
+
+unique_interface_daily
+
+Constraint ini memastikan bahwa setiap
+interface pada router hanya memiliki
+satu data ringkasan untuk setiap tanggal.
+
+Kombinasi unik:
+
+board_id
+interface_name
+log_date
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_interface_summary_lookup
+
+Index pada kolom:
+
+board_id
+interface_name
+log_date DESC
+
+Index ini digunakan untuk mempercepat
+query yang mengambil data ringkasan
+traffic berdasarkan router, interface,
+dan tanggal.
+
+Contoh penggunaan query:
+
+- melihat performa bandwidth per interface
+- membuat grafik traffic per port
+- analisis penggunaan jaringan per interface
+- berdasarkan tanggal
+
+============================================================
+NOMOR 9A-1 CATATAN TAMBAHAN SATUAN TRAFFIC (Mbps)
+============================================================
+
+Pada tabel board_interface_daily_summary
+nilai traffic jaringan disimpan menggunakan
+satuan:
+
+Mbps (Megabit per second)
+
+Kolom yang menggunakan satuan Mbps:
+
+avg_download_mbps
+max_download_mbps
+p95_download_mbps
+avg_upload_mbps
+max_upload_mbps
+
+Satuan ini digunakan agar data agregasi
+traffic harian lebih mudah dibaca dan
+digunakan untuk analisis performa jaringan.
+
+============================================================
+SUMBER DATA TRAFFIC
+============================================================
+
+Router Mikrotik mengirimkan data traffic
+melalui Mikrotik API menggunakan satuan:
+
+bps (bits per second)
+
+Contoh nilai dari API:
+
+15000000
+45000000
+98000000
+
+Nilai tersebut bukan Mbps melainkan jumlah
+bit per detik.
+
+============================================================
+KONVERSI NILAI
+============================================================
+
+Sebelum data agregasi disimpan ke dalam
+tabel board_interface_daily_summary,
+backend harus memastikan bahwa nilai
+traffic telah dikonversi dari bps
+menjadi Mbps.
+
+Rumus konversi:
+
+Mbps = bps / 1,000,000
+
+Contoh:
+
+15000000 bps
+→ 15.00 Mbps
+
+45000000 bps
+→ 45.00 Mbps
+
+98000000 bps
+→ 98.00 Mbps
+
+============================================================
+CATATAN IMPLEMENTASI BACKEND
+============================================================
+
+Backend tidak boleh menyimpan nilai bps
+secara langsung ke kolom yang menggunakan
+satuan Mbps.
+
+Jika nilai bps disimpan tanpa konversi
+maka data agregasi traffic akan menjadi
+tidak akurat dan dapat menyebabkan
+kesalahan analisis performa jaringan.
+
+============================================================
+ALUR DATA YANG BENAR
+============================================================
+
+1. Backend mengambil data traffic
+   dari Mikrotik API dalam satuan bps
+
+2. Backend melakukan konversi
+   bps → Mbps
+
+3. Data Mbps digunakan dalam proses
+   agregasi harian
+
+4. Hasil agregasi disimpan ke dalam
+   tabel board_interface_daily_summary

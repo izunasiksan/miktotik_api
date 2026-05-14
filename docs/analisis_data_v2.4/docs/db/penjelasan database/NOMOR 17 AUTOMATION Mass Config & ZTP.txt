@@ -1,0 +1,448 @@
+-- ============================================================
+-- NOMOR 17: AUTOMATION (Mass Config & ZTP)
+-- ============================================================
+
+Tujuan:
+
+Modul Automation digunakan untuk menjalankan
+tugas otomatis pada router Mikrotik seperti:
+
+- konfigurasi massal
+- reboot perangkat
+- deployment konfigurasi
+- eksekusi script otomatis
+- provisioning router baru (ZTP)
+
+Automation terdiri dari tiga komponen utama:
+
+1. automation_jobs
+2. automation_logs
+3. ztp_queue
+
+
+============================================================
+17A. AUTOMATION JOBS
+============================================================
+
+Tujuan:
+
+Tabel automation_jobs menyimpan daftar
+pekerjaan otomatis yang dijalankan oleh sistem.
+
+Contoh job:
+
+- mass configuration router
+- reboot beberapa router
+- upgrade RouterOS
+- deploy firewall rules
+- deploy hotspot configuration
+
+------------------------------------------------------------
+
+Field Utama
+
+job_id
+Tipe: UUID
+
+Identifier unik untuk setiap automation job.
+
+Nilai dihasilkan otomatis menggunakan:
+
+uuid_generate_v4()
+
+------------------------------------------------------------
+
+job_type
+Tipe: VARCHAR(50)
+
+Menentukan jenis pekerjaan automation.
+
+Contoh nilai:
+
+mass_config
+reboot
+upgrade_routeros
+deploy_script
+backup_router
+
+Field ini digunakan oleh backend untuk
+menentukan jenis eksekusi automation.
+
+------------------------------------------------------------
+
+payload
+Tipe: JSONB
+
+Menyimpan parameter konfigurasi yang akan
+dieksekusi oleh sistem automation.
+
+Contoh payload:
+
+{
+  "command": "/system reboot",
+  "target_group": "branch_router"
+}
+
+Atau:
+
+{
+  "script": "firewall-update-v2.rsc"
+}
+
+JSONB dipilih karena:
+
+- fleksibel
+- dapat menyimpan berbagai struktur data
+- mudah diproses oleh backend
+
+------------------------------------------------------------
+
+description
+Tipe: TEXT
+
+Deskripsi singkat tentang automation job.
+
+Contoh:
+
+"Mass reboot after firmware update"
+
+------------------------------------------------------------
+
+status
+Tipe: VARCHAR(20)
+
+Status eksekusi automation job.
+
+Nilai yang digunakan:
+
+pending
+running
+completed
+failed
+
+Default:
+
+pending
+
+------------------------------------------------------------
+
+created_by
+Tipe: UUID
+
+Foreign key yang menghubungkan automation job
+dengan user yang membuat job tersebut.
+
+Relasi:
+
+automation_jobs.created_by
+→ master_users.user_id
+
+------------------------------------------------------------
+
+created_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Waktu ketika automation job dibuat.
+
+------------------------------------------------------------
+
+completed_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Waktu ketika automation job selesai dijalankan.
+
+Jika job belum selesai,
+nilai kolom ini akan bernilai NULL.
+
+
+============================================================
+17B. AUTOMATION LOGS
+============================================================
+
+Tujuan:
+
+Tabel automation_logs menyimpan hasil eksekusi
+automation job pada setiap router.
+
+Karena satu job dapat dijalankan pada
+banyak router sekaligus.
+
+------------------------------------------------------------
+
+Contoh:
+
+1 job:
+
+Mass reboot
+
+Router target:
+
+10 router
+
+Maka:
+
+automation_logs akan memiliki
+10 record eksekusi.
+
+------------------------------------------------------------
+
+Field Utama
+
+log_id
+Tipe: BIGSERIAL
+
+Identifier unik untuk setiap log eksekusi automation.
+
+------------------------------------------------------------
+
+job_id
+Tipe: UUID
+
+Foreign key yang menghubungkan log
+dengan automation job.
+
+Relasi:
+
+automation_logs.job_id
+→ automation_jobs.job_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Jika job dihapus,
+maka semua log eksekusi job tersebut
+akan ikut terhapus.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Router target yang menjalankan automation.
+
+Relasi:
+
+automation_logs.board_id
+→ mikrotik_boards.board_id
+
+------------------------------------------------------------
+
+status
+Tipe: VARCHAR(20)
+
+Status hasil eksekusi pada router tertentu.
+
+Nilai yang digunakan:
+
+pending
+success
+failed
+
+------------------------------------------------------------
+
+output
+Tipe: TEXT
+
+Output yang dikembalikan oleh router
+setelah menjalankan perintah automation.
+
+Contoh:
+
+"Reboot scheduled"
+
+------------------------------------------------------------
+
+error_message
+Tipe: TEXT
+
+Pesan error jika eksekusi automation gagal.
+
+Contoh:
+
+"Permission denied"
+
+------------------------------------------------------------
+
+executed_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Waktu ketika automation dijalankan
+pada router.
+
+
+============================================================
+17C. ZTP QUEUE (Zero Touch Provisioning)
+============================================================
+
+Tujuan:
+
+ZTP Queue digunakan untuk mencatat
+router baru yang mencoba terhubung
+ke sistem provisioning otomatis.
+
+ZTP memungkinkan router baru
+untuk dikonfigurasi secara otomatis
+tanpa konfigurasi manual.
+
+------------------------------------------------------------
+
+Alur ZTP
+
+1 Router baru menyala
+2 Router menghubungi server provisioning
+3 Router terdeteksi oleh sistem
+4 Data router masuk ke tabel ztp_queue
+5 Admin menyetujui atau menolak provisioning
+6 Sistem melakukan konfigurasi otomatis
+
+------------------------------------------------------------
+
+Field Utama
+
+ztp_id
+Tipe: UUID
+
+Identifier unik untuk setiap permintaan ZTP.
+
+------------------------------------------------------------
+
+mac_address
+Tipe: MACADDR
+
+Alamat MAC dari router yang meminta provisioning.
+
+Contoh:
+
+AA:BB:CC:DD:EE:FF
+
+Digunakan untuk identifikasi perangkat.
+
+------------------------------------------------------------
+
+ip_address
+Tipe: INET
+
+Alamat IP router saat pertama kali
+terhubung ke server provisioning.
+
+------------------------------------------------------------
+
+identity
+Tipe: VARCHAR(100)
+
+Nama identity router dari MikroTik.
+
+Contoh:
+
+Router-Branch-01
+
+------------------------------------------------------------
+
+model
+Tipe: VARCHAR(50)
+
+Model perangkat router.
+
+Contoh:
+
+RB4011
+hAP AC2
+CCR1036
+
+------------------------------------------------------------
+
+router_version
+Tipe: VARCHAR(50)
+
+Versi RouterOS yang digunakan router.
+
+Contoh:
+
+7.14.1
+
+------------------------------------------------------------
+
+temp_username
+Tipe: VARCHAR(50)
+
+Username sementara yang digunakan
+selama proses provisioning.
+
+------------------------------------------------------------
+
+temp_password
+Tipe: TEXT
+
+Password sementara router
+selama proses provisioning.
+
+------------------------------------------------------------
+
+status
+Tipe: VARCHAR(20)
+
+Status permintaan ZTP.
+
+Nilai yang digunakan:
+
+pending
+approved
+rejected
+
+Default:
+
+pending
+
+------------------------------------------------------------
+
+requested_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Waktu ketika router pertama kali
+meminta provisioning.
+
+------------------------------------------------------------
+
+processed_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Waktu ketika permintaan ZTP
+diproses oleh admin (disetujui/ditolak).
+
+Jika status masih 'pending',
+kolom ini akan bernilai NULL.
+
+------------------------------------------------------------
+
+processed_by
+Tipe: UUID
+
+User admin yang memproses
+permintaan ZTP.
+
+Relasi:
+
+ztp_queue.processed_by
+-> master_users.user_id
+
+Digunakan untuk audit siapa yang menyetujui
+atau menolak router baru dalam sistem.
+
+
+============================================================
+TUJUAN SISTEM AUTOMATION
+============================================================
+
+Modul automation digunakan untuk:
+
+1. Mengurangi pekerjaan manual administrator.
+
+2. Mempercepat deployment konfigurasi router.
+
+3. Mengelola router dalam jumlah besar.
+
+4. Mengurangi kesalahan konfigurasi manusia.
+
+5. Mendukung provisioning router otomatis
+melalui mekanisme ZTP.

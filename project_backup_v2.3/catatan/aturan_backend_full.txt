@@ -1,0 +1,466 @@
+================================================================
+DEPLOYMENT GUARDRAILS (PHASE 6)
+----------------------------------------------------------------
+1. Scheduler Separation
+   - Service API: ENABLE_SCHEDULER=False
+   - Service Worker: Menjalankan app/worker.py (APScheduler)
+2. Observability
+   - Prometheus & Grafana aktif; metrics FastAPI via instrumentator
+3. Security
+   - Rate Limiting (SlowAPI + Redis) di endpoint kritis
+4. Logging
+   - Limitasi log compose: max-size 10m, max-file 3
+================================================================
+DOKUMEN STANDAR OPERASIONAL (SOP) BACKEND - BAGIAN 1
+TOPIK: ATURAN KONEKSI & DATABASE I/O (INPUT/OUTPUT)
+Project: Mikrotik Management System (Final Version)
+================================================================
+
+1. PRINSIP UTAMA: ASYNCHRONOUS NON-BLOCKING I/O
+----------------------------------------------------------------
+Mengingat sistem ini harus menangani ratusan router secara simultan, 
+Backend WAJIB menggunakan library database asinkron (Async IO).
+
+A. Driver Database:
+   - Gunakan 'asyncpg' sebagai driver PostgreSQL tercepat untuk Python.
+   - Integrasi ORM harus menggunakan SQLAlchemy 2.0 (Async Session) 
+     atau Tortoise ORM.
+   - DILARANG menggunakan driver sinkron (seperti 'psycopg2' standar) 
+     di dalam loop polling utama karena akan menghentikan (block) 
+     seluruh thread worker saat menunggu respon database.
+
+B. Keuntungan:
+   - Worker dapat mengirim permintaan I/O ke database dan langsung 
+     beralih mengerjakan polling ke router lain tanpa harus menunggu 
+     database selesai menulis data.
+
+2. MANAJEMEN CONNECTION POOLING (PENTING)
+----------------------------------------------------------------
+Backend DILARANG membuka dan menutup koneksi secara manual untuk 
+setiap transaksi. Hal ini akan menyebabkan overhead pada CPU dan 
+kehabisan slot koneksi di PostgreSQL.
+
+A. Parameter Pooling (Standar Rekomendasi):
+   - Pool Size: Minimal 10 koneksi siaga.
+   - Max Overflow: Maksimal 20 koneksi tambahan saat beban puncak.
+   - Pool Timeout: 30 detik (Waktu tunggu jika pool penuh).
+   - Pool Recycle: 1800 detik (30 menit) untuk menyegarkan koneksi.
+
+B. Lifecycle Koneksi:
+   - Koneksi dibuka saat aplikasi Python STARTUP.
+   - Koneksi dikembalikan ke pool (bukan ditutup) setiap kali 
+     transaksi selesai.
+   - Semua koneksi ditutup secara rapi (Graceful Shutdown) saat 
+     aplikasi Python dimatikan.
+
+3. ATURAN PENULISAN DATA (INPUT LOGIC)
+----------------------------------------------------------------
+A. Batch Insert:
+   - Untuk data statistik (Tabel 6, 7, 8), jangan melakukan insert 
+     satu per satu per router.
+   - Kumpulkan data dari satu 'batch' (misal 20 router), lalu 
+     lakukan 'Bulk Insert' dalam satu query tunggal. Ini akan 
+     mengurangi I/O hingga 80%.
+
+B. Atomic Transactions (ACID):
+   - Gunakan 'Transaction Blocks'. Jika ada proses yang gagal 
+     di tengah jalan (misal: gagal update status online), maka 
+     seluruh rangkaian perubahan dalam transaksi tersebut harus 
+     di-Rollback (dibatalkan) agar data tidak korup/inkonsisten.
+
+4. ATURAN PEMBACAAN DATA (OUTPUT LOGIC)
+----------------------------------------------------------------
+A. Fetching Strategy:
+   - Gunakan 'Streaming Result' jika mengambil data dalam jumlah 
+     ribuan baris untuk menghindari pemakaian RAM Python yang meledak.
+   - Pilih kolom yang dibutuhkan saja (SELECT col1, col2). 
+     DILARANG menggunakan 'SELECT *' pada tabel statistik yang besar.
+
+B. UUID Handling:
+   - Pastikan Python mengirim dan menerima 'board_id' dalam format 
+     objek UUID, bukan string biasa, untuk menjaga kompatibilitas 
+     indeks primer di PostgreSQL.
+
+5. PENANGANAN ERROR & FAILOVER I/O
+----------------------------------------------------------------
+A. Deadlock Prevention:
+   - Pastikan urutan update tabel selalu konsisten. 
+     (Contoh: Selalu Update Tabel Mikrotik dulu, baru Insert ke Tabel Event).
+
+B. Database Unreachable:
+   - Jika koneksi database terputus, Backend harus melakukan 
+     'Exponential Backoff'. Jangan membombardir database dengan 
+     percobaan koneksi ulang setiap detik. 
+     (Jeda: 5 detik, 10 detik, 30 detik, dst).
+
+C. Logging I/O Error:
+   - Setiap kegagalan I/O wajib dicatat ke file log internal server 
+     (syslog/error.log) dengan detail query dan timestamp, 
+     NAMUN password mikrotik harus tetap disensor (REDACTED).
+
+6. VALIDASI DATA SEBELUM I/O
+----------------------------------------------------------------
+A. Sanitasi Input:
+   - Gunakan 'Parameterized Queries' (Bind Variables). 
+     DILARANG keras menggabungkan string (string concatenation) 
+     untuk membangun query guna mencegah SQL Injection.
+
+B. Constraint Check:
+   - Pastikan Python melakukan validasi tipe data (Integer, String, 
+     Macaddr) sebelum mencoba mengirimnya ke database untuk 
+     meminimalisir error 'invalid input syntax' yang membuang 
+     resource database.
+
+================================================================
+DOKUMEN SELESAI
+================================================================
+================================================================
+DOKUMEN STANDAR OPERASIONAL (SOP) BACKEND - BAGIAN 2
+TOPIK: ATURAN KEAMANAN & KREDENSIAL (STRICT)
+Project: Mikrotik Management System (Final Version)
+Target: Data Encryption, RAM Security, & Anti-Leakage
+
+Aturan ini bersifat MANDATORY (WAJIB). Pelanggaran terhadap poin-poin di bawah ini dapat mengakibatkan kebocoran akses sistem yang fatal.
+
+PRINSIP UTAMA: ZERO-PLAINTEXT STORAGE
+
+Dilarang menyimpan password router Mikrotik dalam bentuk teks biasa (plaintext) di tabel manapun dalam database.
+
+A. Enkripsi At-Rest (Dalam Database):
+
+Password di Tabel 3 (board_credentials) dan Tabel 5 (vpn_profiles) wajib dienkripsi menggunakan algoritma AES-256-GCM.
+
+GCM (Galois/Counter Mode) wajib digunakan karena memberikan integritas data (menjamin data tidak dimodifikasi saat tersimpan).
+
+B. Key Management:
+
+AES Secret Key (Master Key) dilarang disimpan di database.
+
+Master Key wajib disimpan di Environment Variable server (.env) atau Secret Manager (seperti HashiCorp Vault).
+
+Jika Master Key hilang, maka seluruh password router di database tidak akan bisa didekripsi (pastikan ada backup Master Key yang aman).
+
+KEAMANAN DALAM MEMORI (RAM SECURITY)
+
+Proses dekripsi hanya boleh terjadi di lapisan aplikasi (Python) dan hanya bertahan selama durasi koneksi API berlangsung.
+
+A. Decrypt on Demand:
+
+Backend hanya boleh mendekripsi password sesaat sebelum memanggil fungsi connect() ke API Mikrotik.
+
+Variabel yang menyimpan password plaintext harus bersifat lokal (di dalam scope fungsi/method), bukan variabel global.
+
+B. Immediate Memory Wipe (Manual Garbage Collection):
+
+Setelah koneksi berhasil (objek API sudah terbentuk) atau jika koneksi gagal (Error), variabel password plaintext wajib di-overwrite (ditimpa).
+
+Contoh: raw_password = None atau del raw_password.
+
+ATURAN LOGIN & AUTHENTICATION (USER LEVEL)
+
+Untuk Tabel 1 (master_users):
+
+A. Password Hashing:
+
+Wajib menggunakan BCrypt dengan Work Factor (Cost) minimal 12.
+
+Dilarang menggunakan MD5, SHA1, atau SHA256 tanpa Salt untuk password user.
+
+Backend dilarang memiliki fungsi "View Password User". User hanya bisa melakukan "Reset Password".
+
+B. JWT (JSON Web Token) Security:
+
+Token akses ke Dashboard harus memiliki masa berlaku (Expiry) yang singkat (misal: 1 jam).
+
+Gunakan Refresh Token yang disimpan secara aman di database untuk mendapatkan akses baru.
+
+PENCEGAHAN KEBOCORAN LOG (ANTI-LEAKAGE)
+
+A. Logging Scrubbing:
+
+Backend wajib memiliki fungsi filter log. Jika sebuah error mengandung kata kunci password, secret, atau token, maka nilai tersebut harus disensor menjadi [REDACTED].
+
+Dilarang menggunakan print(locals()) atau men-dump seluruh objek credential ke dalam file log.
+
+B. Exception Handling:
+
+Jangan pernah mengirimkan detail error database (seperti query SQL yang gagal) ke Frontend.
+
+Frontend hanya menerima pesan umum (misal: "Connection Failed"), sementara detail teknis disimpan di log internal server.
+
+ISOLASI AKSES (RBAC VALIDATION)
+
+Setiap kali Backend menerima perintah untuk mengakses sebuah board_id dari User:
+
+A. Multi-Layer Check:
+
+Cek apakah Token User valid.
+
+Cek Tabel 4 (user_board_access). Apakah User tersebut memiliki hak akses ke board_id yang diminta?
+
+JIKA TIDAK: Hentikan proses, catat sebagai 'Unauthorized Access Attempt' di Tabel 10, dan kirim error 403 Forbidden.
+
+KOMUNIKASI JARINGAN (TRANSPORT SECURITY)
+
+A. SSL/TLS:
+
+Koneksi antara Backend ke PostgreSQL wajib menggunakan SSL (sslmode=require).
+
+Akses API ke Mikrotik (jika lewat jalur publik) wajib menggunakan port API-SSL (8729) atau jalur VPN yang sudah terenkripsi.
+
+================================================================
+DOKUMEN SELESAI
+
+================================================================
+DOKUMEN STANDAR OPERASIONAL (SOP) BACKEND - BAGIAN 3
+TOPIK: ATURAN DATA INTEGRITY (THE DELTA LOGIC)
+Project: Mikrotik Management System (Final Version)
+Target: Accuracy in Traffic Volume & Usage Tracking
+
+Aturan ini sangat krusial untuk memastikan laporan pemakaian data (GB/TB) pada Tabel 14, 15, dan 16 tetap akurat meskipun router mengalami restart, mati lampu, atau reset counter.
+
+PEMAHAMAN MASALAH: VOLATILE COUNTERS
+
+Mikrotik menyimpan data 'tx-byte' dan 'rx-byte' pada RAM.
+
+Jika router REBOOT atau user PPPoE/Hotspot LOGOUT, counter pada router akan kembali ke 0.
+
+Backend DILARANG langsung menimpa (overwrite) data di database dengan angka dari router.
+
+LOGIKA PERHITUNGAN SELISIH (THE DELTA ALGORITHM)
+
+Setiap kali polling (setiap 5-15 menit), Backend harus menjalankan algoritma berikut:
+
+A. Ambil Data:
+
+Current_Mikrotik_Bytes: Nilai dari router saat ini.
+
+Last_Stored_Bytes: Nilai yang diambil pada polling SEBELUMNYA (simpan di cache/memory worker).
+
+B. Hitung Delta (Selisih):
+
+Delta = Current_Mikrotik_Bytes - Last_Stored_Bytes
+
+C. Penanganan Reset (Reboot/Logout):
+
+JIKA Delta < 0 (Negatif):
+Berarti router reset. Maka: Delta = Current_Mikrotik_Bytes.
+
+JIKA Delta >= 0 (Positif):
+Berarti router berjalan normal. Gunakan hasil pengurangan tersebut.
+
+PROSES PENYIMPANAN (ATOMIC UPSERT)
+
+Backend harus menggunakan query akumulatif untuk mengupdate database:
+
+A. Query Database (Tabel 14, 15, 16):
+
+UPDATE table_name SET total_rx_bytes = total_rx_bytes + Delta_RX, total_tx_bytes = total_tx_bytes + Delta_TX, last_update = NOW() WHERE ...
+
+B. Konsistensi Harian:
+
+Pastikan update dilakukan pada baris dengan log_date = CURRENT_DATE.
+
+Jika berganti hari, buat baris baru (INSERT) dengan nilai awal 0, lalu mulai akumulasi kembali.
+
+PENANGANAN PPPOE DYNAMIC INTERFACE (TABEL 15)
+
+Interface PPPoE bersifat dinamis (muncul saat login, hilang saat logout).
+
+Backend WAJIB melakukan "Final Sync" saat mendeteksi user akan/sudah logout untuk menangkap Bytes terakhir sebelum interface hilang dari daftar /interface print stats.
+
+ATURAN PRE-RESET SYNC (NOMOR 17)
+
+Tepat pukul 23:55 WIB, Backend menjalankan "Task Force Sync" (Prioritas Tinggi).
+
+Semua data byte terakhir ditarik dan diakumulasikan ke database hari tersebut.
+
+Hal ini dilakukan agar saat router menjalankan /ip hotspot user reset-counters pada pukul 00:00, tidak ada data "menggantung" yang hilang di akhir hari.
+
+VALIDASI & SANITY CHECK
+
+A. Anti-Glitch:
+
+Jika Delta yang didapat melebihi kapasitas bandwidth maksimal interface (misal: Delta menunjukkan 100GB dalam 5 menit pada interface 1Gbps), Backend harus mengabaikan data tersebut dan mencatatnya sebagai 'Anomaly' di log.
+
+B. Precision Storage:
+
+Semua perhitungan dilakukan dalam satuan BYTES (BigInt).
+
+Konversi ke MB/GB/TB hanya dilakukan pada sisi UI/Frontend untuk menjaga presisi data hingga satu byte terakhir.
+
+================================================================
+DOKUMEN SELESAI
+
+================================================================
+DOKUMEN STANDAR OPERASIONAL (SOP) BACKEND - BAGIAN 4
+TOPIK: ATURAN POLLING & PERFORMANCE
+Project: Mikrotik Management System (Final Version)
+Target: System Scalability & Resource Efficiency
+
+Aturan ini dirancang agar Backend tetap ringan dan responsif meskipun jumlah router yang dikelola bertambah (Scalability). Intinya adalah bagaimana Python berinteraksi dengan ratusan perangkat tanpa membuat CPU server "meledak" atau database "antre".
+
+STRATEGI CONCURRENCY (PARALELISME)
+
+Dilarang memproses router satu per satu secara linear (sekuensial), namun juga dilarang menembak semuanya sekaligus.
+
+A. Batching & Semaphores:
+
+Gunakan asyncio.Semaphore untuk membatasi jumlah koneksi API yang aktif secara bersamaan (Concurrent Connections).
+
+Rekomendasi: Maksimal 20-50 worker aktif per core CPU.
+
+Contoh: Jika ada 200 router, bagi menjadi 10 batch beranggotakan 20 router.
+
+B. Task Prioritization:
+
+Bedakan worker untuk "Fast Polling" (Ping & Status) dan "Heavy Polling" (Usage & Resource).
+
+Fast Polling (Tabel 2): Setiap 1-2 menit.
+
+Heavy Polling (Tabel 7, 14, 15): Setiap 5-15 menit.
+
+TIMEOUT & ERROR ISOLATION
+
+Satu router yang bermasalah tidak boleh menghambat polling router lainnya.
+
+A. Strict Timeout:
+
+Connect Timeout: Maksimal 5 detik.
+
+Response Timeout: Maksimal 10 detik.
+
+Jika router tidak merespon dalam waktu tersebut, batalkan (abort) sesi untuk router itu dan lanjut ke antrean berikutnya.
+
+B. Backoff Strategy:
+
+Jika sebuah router gagal dijangkau (RTO) sebanyak 3x berturut-turut, kurangi frekuensi polling-nya (misal dari tiap 5 menit menjadi tiap 30 menit) untuk menghemat resource sistem.
+
+OPTIMASI DATABASE I/O (PERFORMANCE)
+
+A. Write-Ahead Buffering:
+
+Jangan melakukan INSERT ke database setiap kali satu data router didapat.
+
+Kumpulkan data hasil satu batch ke dalam List/Array di memori Python, lalu gunakan perintah copy_records_to_table (pada asyncpg) atau insert_many (Bulk Insert) untuk mengirim semuanya dalam satu instruksi SQL.
+
+B. Index Awareness:
+
+Jangan melakukan filter data menggunakan kolom yang tidak memiliki index.
+
+Selalu gunakan board_id (UUID) atau log_date dalam klausa WHERE untuk memastikan kecepatan query database tetap stabil seiring bertambahnya data.
+
+EFEKTIVITAS API MIKROTIK
+
+A. Selective Query:
+
+Dilarang menarik seluruh konfigurasi router. Gunakan .proplist pada API Mikrotik untuk hanya mengambil field yang dibutuhkan (misal: hanya rx-byte, tx-byte, name).
+
+Contoh perintah efisien: /interface/print =.proplist=name,rx-byte,tx-byte
+
+B. Connection Persistence:
+
+Gunakan Persistent Connection (Keep-alive) jika memungkinkan, agar tidak perlu melakukan proses "Handshake/Login" yang berat setiap kali polling dimulai.
+
+MONITORING KESEHATAN BACKEND
+
+A. Task Duration Logging:
+
+Backend harus mencatat berapa lama waktu yang dibutuhkan untuk menyelesaikan satu siklus polling global.
+
+Jika waktu_eksekusi > interval_polling, berarti sistem mengalami overload dan perlu penambahan resource atau optimasi batching.
+
+B. Memory Leak Prevention:
+
+Karena Python akan berjalan terus-menerus (long-running process), pastikan tidak ada variabel global yang menampung data besar tanpa pernah dihapus. Gunakan Context Managers (with statement) untuk memastikan resource tertutup otomatis.
+
+================================================================
+DOKUMEN SELESAI
+
+================================================================
+DOKUMEN STANDAR OPERASIONAL (SOP) BACKEND - BAGIAN 5
+TOPIK: ATURAN NOTIFIKASI & ANTI-SPAM
+Project: Mikrotik Management System (Final Version)
+Target: Intelligent Alerting & Bot Resource Management
+
+Bagian terakhir ini memastikan sistem notifikasi Telegram tidak menjadi gangguan (noise) bagi teknisi, melainkan menjadi alat monitoring yang presisi dan cerdas.
+
+LOGIKA ANTI-FLAPPING (PENCEGAHAN SPAM)
+
+Router sering mengalami kondisi "Flapping" (koneksi putus-nyambung dalam hitungan detik). Backend DILARANG langsung mengirim notifikasi saat pertama kali status terdeteksi Down.
+
+A. The 60-Seconds Grace Period:
+
+Saat Worker mendeteksi is_online = FALSE, jangan kirim alert.
+
+Masukkan ID router ke dalam "Waiting Queue" (Redis/In-Memory) selama 60 detik.
+
+Setelah 60 detik, cek ulang status router di database.
+
+JIKA router sudah kembali is_online = TRUE, hapus dari antrean dan batalkan alert (Discard).
+
+JIKA tetap FALSE, segera kirimkan notifikasi.
+
+B. Hysteresis Logic:
+
+Jika router mati-nyala berkali-kali dalam 5 menit, kirimkan satu pesan ringkasan: "Router [Nama] mengalami instabilitas koneksi (3x Down dalam 5 menit)".
+
+MAINTENANCE BYPASS (MODE PEMELIHARAAN)
+
+Sistem harus menghormati jadwal teknisi saat melakukan perbaikan di lapangan.
+
+A. Pre-Alert Check:
+
+Sebelum memanggil API Telegram, Backend WAJIB mengecek kolom is_maintenance di tabel mikrotik_boards (Tabel 2).
+
+JIKA is_maintenance = TRUE, maka semua alur notifikasi untuk board tersebut WAJIB dihentikan (Bypass).
+
+B. Maintenance Reminder:
+
+Jika sebuah router sudah dalam mode maintenance lebih dari 24 jam, Backend dapat mengirimkan pengingat mingguan/harian kepada admin untuk memastikan apakah perbaikan sudah selesai.
+
+RECIPIENT ROUTING (KETEPATAN SASARAN)
+
+Dilarang mengirim semua alert ke satu grup besar jika tidak relevan.
+
+A. Mapping Responsibility:
+
+Gunakan tabel telegram_recipients (Tabel 12b) untuk mencari siapa teknisi atau grup yang bertanggung jawab atas board_id tersebut.
+
+Pesan hanya dikirim ke chat_id yang terdaftar untuk board tersebut.
+
+B. Alert Level Filtering:
+
+Filter pesan berdasarkan kolom alert_levels.
+
+Contoh: Teknisi A hanya ingin menerima alert 'critical', sementara Admin ingin menerima 'critical' dan 'warning'.
+
+TELEGRAM API RATE LIMITING
+
+Telegram memiliki batasan ketat (30 pesan per detik). Jika sistem mengelola ratusan router dan terjadi gangguan massal (misal: ISP pusat mati), Backend tidak boleh melanggar limit ini.
+
+A. Message Queuing:
+
+Gunakan antrean (Queue) untuk pengiriman pesan Telegram.
+
+Jika terjadi ribuan alert sekaligus, kirimkan secara bertahap (Burst handling) atau gabungkan menjadi satu pesan kolektif: "Terdapat 15 router di Site [A] sedang Down".
+
+FORMAT PESAN & AUDIT TRAIL
+
+A. Standardized Message:
+
+Gunakan Markdown atau HTML format agar pesan mudah dibaca.
+
+Contoh:
+🚨 ROUTER DOWN 🚨
+Nama: Router-01 (Site Central)
+Waktu: 2024-05-20 14:00:01
+Status: RTO (Ping Timeout)
+Mohon segera dilakukan pengecekan.
+
+B. Notification Logging:
+
+Setiap pesan yang berhasil dikirim harus dicatat di log aplikasi (bukan tabel utama, cukup log file) untuk kebutuhan troubleshooting jika ada teknisi yang komplain tidak menerima alert.
+
+================================================================
+DOKUMEN SELESAI

@@ -1,0 +1,2512 @@
+🚀 DAY 1 — FOUNDATION & FAIL-FAST SETUP
+🎯 Objective Day 1
+
+Membangun fondasi yang tidak boleh salah dari awal:
+
+Environment clean
+
+Config terpusat
+
+Async DB connection stabil
+
+Fail-fast mechanism bekerja
+
+Hari pertama = 100% tentang stability base.
+
+Kalau pondasi goyang → 14 hari gagal.
+
+📌 TASK LIST DAY 1
+1️⃣ Setup Virtual Environment
+Target
+
+Python 3.10+ aktif
+
+venv aktif
+
+requirements.txt dibuat
+
+Install Minimal:
+pip install sqlalchemy[asyncio]
+pip install asyncpg
+pip install python-dotenv
+pip install pydantic-settings
+2️⃣ Buat Struktur Folder Clean Architecture
+
+Target akhir hari 1:
+
+mikrotik_manager/
+│
+├── config/
+│   ├── __init__.py
+│   ├── database.py
+│   └── settings.py
+│
+├── logs/
+│
+├── .env
+├── .gitignore
+├── main.py
+└── requirements.txt
+
+❗ Belum perlu models, services, worker.
+
+3️⃣ Implement config/settings.py (Fail Fast)
+Assessment Criteria:
+
+Jika .env kosong → aplikasi error langsung.
+
+Jika AES key ≠ 32 char → error langsung.
+
+Kalau ini tidak terjadi → FAIL.
+
+4️⃣ Implement Async Database Engine
+
+Wajib:
+
+pool_size = 10
+
+max_overflow = 20
+
+pool_recycle = 1800
+
+sslmode=require
+
+5️⃣ Startup Health Check
+
+Buat main.py yang:
+
+Load settings
+
+Connect DB
+
+Jalankan SELECT 1
+
+Jika gagal → exit(1)
+
+🧪 DAY 1 ASSESSMENT TEST
+
+Kamu dianggap lulus Day 1 jika:
+
+Test	Expected Result
+DB mati	App exit dengan error jelas
+AES key kosong	ValidationError
+DB hidup	"Database Connected"
+Restart app 5x	Tidak ada warning pool
+🚨 DAY 1 COMMON FAILURE
+
+Lupa sslmode
+
+Pool config salah
+
+Tidak fail-fast
+
+Password muncul di log
+
+Settings tidak singleton
+
+🎯 OUTPUT WAJIB HARI 1
+
+settings.py
+
+database.py
+
+main.py
+
+Test connection berhasil
+
+requirements.txt clean
+
+⏱ Estimasi Waktu
+Task	Waktu
+Setup venv	20 menit
+Folder structure	15 menit
+Settings	40 menit
+Database config	40 menit
+Testing	45 menit
+
+Total realistis: 3 jam
+
+🧠 MINDSET DAY 1
+
+Hari pertama bukan tentang fitur.
+Hari pertama tentang:
+
+“Apakah backend bisa hidup tanpa error konfigurasi?”
+
+Kalau Day 1 solid → 13 hari berikutnya lebih ringan.DAY 2 — DATABASE STRUCTURE & STATE MACHINE VALIDATION
+
+
+Kalau struktur database salah → seluruh sistem NOC kamu akan rapuh.
+
+Hari ini kita fokus:
+
+🔒 Integrity > Feature
+
+🎯 OBJECTIVE DAY 2
+
+Define semua tabel inti
+
+Validasi foreign key & constraint
+
+Tentukan state machine untuk alert
+
+Pastikan tidak ada “logical hole”
+
+Hari ini belum masuk API.
+
+🧱 TABEL WAJIB HARI 2
+
+Berdasarkan blueprint project kamu, minimal harus ada:
+
+routers
+
+router_credentials
+
+interfaces
+
+alerts
+
+alert_history
+
+monitoring_logs
+
+users
+
+1️⃣ ROUTERS TABLE
+🎯 Tujuan
+
+Represent 1 device MikroTik (ingat: dashboard kamu single device, tapi backend harus scalable).
+
+Kolom Wajib:
+
+id (UUID)
+
+name
+
+ip_address
+
+port
+
+location
+
+is_active
+
+created_at
+
+updated_at
+
+🧪 Assessment Check
+Test	Expected
+Duplicate IP	Ditolak
+IP kosong	Ditolak
+Router nonaktif	Tidak dipolling
+2️⃣ ROUTER_CREDENTIALS (SECURITY CRITICAL)
+
+🚨 Tidak boleh plain text.
+
+Kolom:
+
+id
+
+router_id (FK)
+
+username
+
+encrypted_password
+
+encryption_iv
+
+created_at
+
+🧪 Assessment
+Test	Expected
+2 credential aktif untuk 1 router	Ditolak
+Password terlihat plain	FAIL
+Router dihapus	credential ikut terhapus (CASCADE)
+3️⃣ INTERFACES TABLE
+
+Ini penting untuk kasus kamu sebelumnya (ether1 ikut terproses).
+
+Kolom:
+
+id
+
+router_id
+
+name
+
+is_monitoring_enabled
+
+last_status (UP/DOWN)
+
+last_checked_at
+
+🧪 Assessment
+Test	Expected
+1 router punya 10 interface	Valid
+Toggle ether3	ether1 tidak berubah
+Interface hilang di router	Flag deleted, jangan langsung drop
+4️⃣ ALERT STATE MACHINE (KRITIS)
+
+Hari ini kamu harus definisikan state machine:
+
+UP → DOWN → ALERT_TRIGGERED → ACKNOWLEDGED → RESOLVED
+
+Tidak boleh:
+
+UP → RESOLVED
+ALERT TABLE
+
+Kolom:
+
+id
+
+router_id
+
+interface_id
+
+status (ENUM)
+
+severity
+
+started_at
+
+acknowledged_at
+
+resolved_at
+
+🧪 Assessment
+Transition	Valid?
+DOWN → ALERT_TRIGGERED	Yes
+ALERT_TRIGGERED → UP	No
+ACK → RESOLVED	Yes
+RESOLVED → ACK	No
+
+Kalau state machine tidak jelas → ANOMALI #14 muncul lagi.
+
+5️⃣ ALERT_HISTORY
+
+Tidak boleh overwrite data.
+
+Semua perubahan status harus dicatat.
+
+Kolom:
+
+id
+
+alert_id
+
+old_status
+
+new_status
+
+changed_at
+
+changed_by
+
+6️⃣ MONITORING_LOGS
+
+Untuk observability (hindari Anomali #12).
+
+Kolom:
+
+id
+
+router_id
+
+interface_id
+
+rx
+
+tx
+
+cpu
+
+memory
+
+checked_at
+
+7️⃣ USERS
+
+Minimal:
+
+id
+
+username
+
+password_hash
+
+role (admin/operator/viewer)
+
+is_active
+
+🔐 INDEX WAJIB
+
+Hari 2 belum selesai kalau belum ada:
+
+Index di router_id
+
+Index di interface_id
+
+Index di status (alerts)
+
+Unique constraint di (router_id, name) untuk interfaces
+
+🧪 DAY 2 ASSESSMENT TEST
+Kamu lulus jika:
+
+✅ Tidak ada circular FK
+✅ Cascade delete aman
+✅ Unique constraint bekerja
+✅ ENUM status valid
+✅ Semua timestamp pakai timezone aware
+
+🚨 COMMON FAILURE DAY 2
+
+Tidak pakai UUID
+
+ENUM tidak konsisten dengan state machine
+
+Tidak ada index → slow query
+
+Tidak ada soft delete untuk interface
+
+Timestamp naive (no timezone)
+
+🎯 OUTPUT WAJIB HARI 2
+
+models.py lengkap
+
+ENUM alert_status.py
+
+migration SQL / create_all script
+
+ERD sederhana (boleh manual)
+
+⏱ Estimasi Waktu
+Task	Waktu
+Desain tabel	1 jam
+Implement model	1.5 jam
+Constraint & index	45 menit
+Testing insert/delete	45 menit
+
+Total realistis: 4 jam
+
+🧠 MINDSET DAY 2
+
+Hari 2 bukan tentang cepat.
+
+Hari 2 tentang:
+
+“Apakah data saya bisa rusak?”
+
+Kalau jawabannya “mungkin” → belum lulus.🎯 OBJECTIVE DAY 3
+
+Bangun arsitektur:
+
+Scheduler → Worker → Router API → Parser → DB → Alert Engine
+
+Bukan cuma polling.
+Tapi polling yang tidak membunuh router & database.
+
+🧠 DESAIN ARSITEKTUR
+1️⃣ Scheduler Layer
+
+Tugas:
+
+Ambil router aktif dari DB
+
+Masukkan ke queue
+
+Atur interval polling (misal 30 detik)
+
+❗ Jangan polling langsung di loop while True tanpa kontrol.
+
+2️⃣ Worker Layer
+
+Gunakan:
+
+asyncio
+
+semaphore (limit concurrency)
+
+timeout per router
+
+Contoh kontrol:
+
+semaphore = asyncio.Semaphore(5)
+
+Artinya:
+
+Max 5 router diproses bersamaan
+
+Sisanya menunggu
+
+3️⃣ Router API Layer
+
+Untuk MikroTik:
+
+Pilihan:
+
+API (port 8728)
+
+SSH
+
+REST
+
+Untuk monitoring → disarankan API (lebih ringan).
+
+🚨 ANOMALI #11 PREVENTION (KRITIS)
+Masalah klasik:
+
+Router down → retry cepat → flood
+
+Router lambat → worker numpuk
+
+DB lambat → queue macet
+
+SOLUSI WAJIB HARI 3
+1. Timeout Per Router
+
+Misal:
+
+max 5 detik
+
+kalau lebih → skip
+
+2. Circuit Breaker
+
+Jika router gagal 5x berturut:
+
+Stop polling 5 menit
+
+Jangan retry tiap 10 detik
+
+3. Backpressure Control
+
+Jika DB write time > threshold:
+
+Kurangi concurrency
+
+Jangan terus push log
+
+🧱 STRUCTURE FOLDER BARU
+mikrotik_manager/
+│
+├── worker/
+│   ├── scheduler.py
+│   ├── poller.py
+│   ├── router_client.py
+│   └── alert_engine.py
+🔁 POLLING FLOW
+1. Scheduler ambil router aktif
+2. Worker execute poll()
+3. Router_client ambil:
+   - interface
+   - rx/tx
+   - cpu
+   - memory
+4. Simpan ke monitoring_logs
+5. Trigger alert_engine
+⚙️ INTERFACE PROCESSING (SOLUSI BUG ETHER3)
+
+Hari ini kamu harus memastikan:
+
+Polling memproses per-interface, bukan global state.
+
+Pseudo logic:
+
+for interface in router.interfaces:
+    if not interface.is_monitoring_enabled:
+        continue
+
+Jangan pakai:
+
+update all interface status
+
+Itulah kenapa ether1 ikut terproses kemarin.
+
+🧪 DAY 3 ASSESSMENT TEST
+Scenario	Expected
+Router mati	Tidak crash
+Router lambat	Timeout clean
+10 router aktif	Max 5 concurrency
+DB error	Worker tidak infinite retry
+Interface disabled	Tidak dipoll
+🔥 LOAD TEST SIMULASI
+
+Minimal test:
+
+Set polling interval 5 detik
+
+Jalankan 5 menit
+
+Monitor:
+
+CPU backend
+
+RAM
+
+Connection pool
+
+Kalau naik terus → memory leak.
+
+🎯 OUTPUT WAJIB HARI 3
+
+scheduler.py
+
+poller.py
+
+router_client.py (dummy/mock dulu boleh)
+
+concurrency control
+
+timeout
+
+circuit breaker basic
+
+⏱ Estimasi Waktu
+Task	Waktu
+Desain flow	40 menit
+Implement scheduler	1 jam
+Worker async	1.5 jam
+Timeout & semaphore	45 menit
+Testing	1 jam
+
+Total realistis: 4–5 jam
+
+🧠 MINDSET DAY 3
+
+Hari 3 bukan tentang fitur dashboard.
+Hari 3 tentang:
+
+“Apakah sistem saya stabil walau router bermasalah?”
+
+Kalau belum stabil → jangan lanjut ke Day 4.🎯 OBJECTIVE DAY 4
+
+Implement Alert Engine berbasis state machine
+
+Pastikan transisi status valid
+
+Hindari duplicate alert
+
+Implement debounce logic
+
+Record full history
+
+🧠 ALERT STATE MACHINE (FIXED RULE)
+
+Status ENUM wajib:
+
+UP
+DOWN
+ALERT_TRIGGERED
+ACKNOWLEDGED
+RESOLVED
+🔁 Transisi VALID
+From	To
+UP	DOWN
+DOWN	ALERT_TRIGGERED
+ALERT_TRIGGERED	ACKNOWLEDGED
+ALERT_TRIGGERED	RESOLVED
+ACKNOWLEDGED	RESOLVED
+RESOLVED	UP
+❌ Transisi TIDAK VALID
+From	To
+UP	RESOLVED
+ACKNOWLEDGED	UP
+ALERT_TRIGGERED	UP
+RESOLVED	ALERT_TRIGGERED
+
+Kalau sistem kamu mengizinkan itu → FAIL.
+
+🔥 PROBLEM UTAMA NOC: FLAPPING
+
+Kasus:
+
+UP → DOWN → UP → DOWN → UP
+
+Kalau tidak ada debounce:
+
+Alert banjir
+
+Operator stres
+
+🛡 DEBOUNCE LOGIC WAJIB
+
+Implement:
+
+Delay 10–30 detik sebelum trigger alert
+
+Hanya buat alert jika status DOWN bertahan
+
+Pseudo logic:
+
+if status == "DOWN":
+    if down_duration > threshold:
+        trigger_alert()
+🧠 ALERT ENGINE FLOW
+Polling result →
+Compare last_status →
+Check duration →
+Validate transition →
+Create/update alert →
+Record alert_history
+📂 FILE STRUCTURE DAY 4
+worker/
+│
+├── alert_engine.py
+├── state_validator.py
+├── debounce.py
+└── history_recorder.py
+🔐 DUPLICATE ALERT PREVENTION
+
+Wajib cek sebelum insert:
+
+SELECT * FROM alerts
+WHERE interface_id = ?
+AND status IN ('ALERT_TRIGGERED', 'ACKNOWLEDGED')
+
+Jika ada → jangan buat alert baru.
+
+🧪 DAY 4 ASSESSMENT TEST
+1️⃣ Test Normal Case
+
+Interface UP → DOWN (30 detik)
+Expected:
+
+1 alert dibuat
+
+Status ALERT_TRIGGERED
+
+2️⃣ Test Flapping
+
+UP → DOWN (5 detik) → UP
+Expected:
+
+Tidak ada alert dibuat
+
+3️⃣ Test Acknowledge
+
+ALERT_TRIGGERED → ACKNOWLEDGED
+Expected:
+
+acknowledged_at terisi
+
+history tercatat
+
+4️⃣ Test Resolve
+
+ACKNOWLEDGED → RESOLVED
+Expected:
+
+resolved_at terisi
+
+Tidak boleh kembali ke ACK
+
+5️⃣ Test Duplicate Prevention
+
+DOWN → tetap DOWN 5 menit
+Expected:
+
+1 alert saja
+
+🚨 COMMON FAILURE DAY 4
+
+Tidak pakai transaction saat update alert
+
+Tidak record history
+
+Tidak validasi transition
+
+Alert auto resolve tanpa log
+
+Tidak pakai timezone aware timestamp
+
+🎯 OUTPUT WAJIB HARI 4
+
+alert_engine.py
+
+state transition validator
+
+debounce logic
+
+duplicate prevention query
+
+history recorder
+
+Unit test minimal 3 scenario
+
+⏱ Estimasi Waktu
+Task	Waktu
+Desain state machine	45 menit
+Implement engine	1.5 jam
+Debounce logic	45 menit
+History system	45 menit
+Testing	1 jam
+
+Total realistis: 4–5 jam
+
+🧠 MINDSET DAY 4
+
+Hari 4 bukan tentang banyak alert.
+Hari 4 tentang:
+
+“Apakah sistem saya tahu kapan harus diam?”
+
+Kalau sistem terlalu sensitif → gagal.
+Kalau terlalu lambat → juga gagal.🚀 DAY 5 — AUTHENTICATION, ROLE CONTROL & CREDENTIAL ISOLATION
+
+Hari 4 = Otak (Alert Engine)
+Hari 5 = 🔐 Sistem Keamanan
+
+Kalau hari ini salah desain:
+
+🚨 Credential bocor
+
+🚨 Semua user bisa ACK alert
+
+🚨 Router password bisa diambil sembarang orang
+
+🚨 Anomali #13 (Security & Credential Isolation)
+
+Hari ini bukan tentang login.
+Hari ini tentang akses yang benar-benar terkendali.
+
+🎯 OBJECTIVE DAY 5
+
+Implement authentication system (JWT / session)
+
+Implement role-based access control (RBAC)
+
+Isolasi credential router
+
+Audit logging untuk action penting
+
+Hard validation endpoint permission
+
+🧠 ROLE STRUCTURE (WAJIB)
+
+Minimal 3 role:
+
+ADMIN
+OPERATOR
+VIEWER
+🔐 Hak Akses
+Action	Admin	Operator	Viewer
+View dashboard	✅	✅	✅
+Acknowledge alert	✅	✅	❌
+Resolve alert	✅	❌	❌
+Edit router	✅	❌	❌
+View router credential	❌ (via API)	❌	❌
+
+🚨 Bahkan ADMIN tidak boleh melihat plain password.
+
+🔑 AUTH SYSTEM
+
+Gunakan:
+
+JWT (access token)
+
+Expire 15–30 menit
+
+Refresh token optional (boleh Day 10)
+
+Token Wajib Berisi:
+{
+  "user_id": "...",
+  "role": "ADMIN",
+  "exp": 123456789
+}
+🔒 PASSWORD USER
+
+WAJIB:
+
+bcrypt / argon2
+
+Salt otomatis
+
+Tidak boleh SHA256 biasa
+
+🛡 ROUTER CREDENTIAL ISOLATION (KRITIS)
+
+Password router:
+
+Disimpan encrypted (AES-256)
+
+Key dari environment
+
+Tidak pernah dikirim ke frontend
+
+Hanya didecrypt saat polling
+
+🚨 Anti-pattern:
+
+Kirim credential ke React
+
+Log password saat debug
+
+Hardcode AES key
+
+🧠 PERMISSION VALIDATOR
+
+Buat middleware:
+
+require_role("ADMIN")
+
+Jangan cuma cek di frontend.
+
+Backend wajib enforce.
+
+📂 FILE STRUCTURE DAY 5
+auth/
+│
+├── hashing.py
+├── jwt_handler.py
+├── permissions.py
+└── dependencies.py
+🧪 DAY 5 ASSESSMENT TEST
+1️⃣ Unauthorized Access
+
+Tanpa token →
+Expected: 401
+
+2️⃣ Role Violation
+
+Viewer coba ACK alert →
+Expected: 403
+
+3️⃣ Expired Token
+
+Token lewat exp →
+Expected: 401
+
+4️⃣ Password Leak Test
+
+Search log file →
+Expected: Tidak ada password muncul
+
+5️⃣ Credential Decrypt
+
+Decrypt hanya saat worker polling
+Tidak pernah expose ke API
+
+🔥 SECURITY HARDENING CHECKLIST
+
+ HTTPS enforced
+
+ CORS restricted
+
+ Rate limit login
+
+ Brute force protection
+
+ Audit log untuk:
+
+login
+
+acknowledge
+
+resolve
+
+router edit
+
+🚨 COMMON FAILURE DAY 5
+
+Role dicek di frontend saja
+
+Tidak pakai refresh token → user sering logout (UX buruk)
+
+Tidak blacklist token saat logout
+
+Password hash terlalu cepat (no cost factor)
+
+JWT secret hardcoded
+
+🎯 OUTPUT WAJIB HARI 5
+
+Login endpoint
+
+JWT creation
+
+Role middleware
+
+Password hashing
+
+Permission matrix
+
+Audit log minimal
+
+⏱ Estimasi Waktu
+Task	Waktu
+Hashing system	45 menit
+JWT system	1 jam
+Middleware permission	1 jam
+Audit log	45 menit
+Testing	1 jam
+
+Total realistis: 4–5 jam
+
+🧠 MINDSET DAY 5
+
+Hari ini bukan tentang login berhasil.
+
+Hari ini tentang:
+
+“Kalau sistem saya diretas, seberapa sulit penyerang bergerak?”
+
+Kalau jawabannya “mudah” → belum lulus.🚀 DAY 8 — RATE LIMITING, BACKPRESSURE HARDENING & PERFORMANCE GUARD
+
+Hari 7 = Sistem bisa melihat dirinya sendiri
+Hari 8 = Sistem bisa melindungi dirinya sendiri
+
+Kalau hari ini salah desain:
+
+🚨 API bisa di-spam
+
+🚨 Login brute force
+
+🚨 Worker overheat
+
+🚨 DB connection pool habis
+
+🚨 Anomali #11 muncul lagi
+
+Hari ini fokus:
+
+🎯 “Kalau trafik naik 10x, apakah sistem tetap stabil?”
+
+🎯 OBJECTIVE DAY 8
+
+Implement rate limiting (API)
+
+Brute force protection (login)
+
+Worker backpressure hard limit
+
+DB protection strategy
+
+Graceful degradation
+
+🧠 1️⃣ API RATE LIMITING (WAJIB)
+
+Minimal:
+
+Endpoint	Limit
+Login	5 request / menit
+GET Alerts	60 request / menit
+Monitoring	30 request / menit
+Global default	100 request / menit
+🔐 Login Brute Force Protection
+
+Jika 5x gagal:
+
+Lock account 5 menit
+
+Log security event
+
+🚨 Jangan hanya batasi per IP.
+Harus juga per username.
+
+🛡 2️⃣ WORKER HARD LIMIT
+
+Hari 3 kamu sudah pakai semaphore.
+Hari 8 kamu wajib tambah:
+
+Adaptive Concurrency
+
+Jika:
+
+DB response > 200ms
+
+CPU > threshold
+
+Turunkan concurrency:
+
+if avg_db_time > 0.2:
+    max_concurrency = 3
+🧱 3️⃣ DB CONNECTION PROTECTION
+
+Masalah klasik:
+
+API dan Worker rebutan pool
+
+Solusi:
+
+Pisahkan:
+
+API engine
+
+Worker engine
+
+Atau minimal:
+
+Gunakan pool_size berbeda
+
+🧠 4️⃣ GRACEFUL DEGRADATION
+
+Jika sistem overload:
+
+Nonaktifkan monitoring history endpoint
+
+Tetap izinkan alert endpoint
+
+Health endpoint harus reflect degraded
+
+🔥 5️⃣ SLOW QUERY DETECTION
+
+Log jika:
+
+query_time > 500ms
+
+Dan tandai sebagai WARNING.
+
+🧪 DAY 8 ASSESSMENT TEST
+1️⃣ Spam Login
+
+Kirim 10x login gagal
+Expected:
+
+5 pertama gagal normal
+
+Sisanya 429 / account locked
+
+2️⃣ Spam API
+
+Kirim 200 request cepat
+Expected:
+
+429 Too Many Requests
+
+3️⃣ Simulasi DB Lambat
+
+Delay DB →
+Expected:
+
+Concurrency turun
+
+Worker tidak crash
+
+4️⃣ Pool Exhaustion Test
+
+Set pool_size kecil →
+Expected:
+
+Tidak deadlock
+
+Error tertangani
+
+5️⃣ Health Under Load
+
+Saat overload →
+/health harus menunjukkan degraded
+
+🚨 COMMON FAILURE DAY 8
+
+Rate limit hanya di frontend
+
+Tidak ada retry-backoff
+
+Worker retry terlalu cepat
+
+DB pool tidak dipisah
+
+Tidak ada 429 handler
+
+📂 FILE STRUCTURE DAY 8
+security/
+│
+├── rate_limiter.py
+├── brute_force.py
+└── overload_guard.py
+
+Worker:
+
+worker/
+└── adaptive_control.py
+🎯 OUTPUT WAJIB DAY 8
+
+Rate limiter aktif
+
+Brute force lock
+
+Adaptive worker concurrency
+
+DB pool isolation
+
+429 handler clean JSON
+
+Slow query log
+
+⏱ Estimasi Waktu
+Task	Waktu
+Rate limit middleware	1.5 jam
+Login lock mechanism	1 jam
+Adaptive worker logic	1.5 jam
+DB pool tuning	1 jam
+Stress testing	1 jam
+
+Total realistis: 5–6 jam
+
+🧠 MINDSET DAY 8
+
+Hari 8 bukan tentang performa tinggi.
+
+Hari 8 tentang:
+
+“Saat sistem diserang atau overload, apakah dia tetap waras?”
+
+Kalau tidak → belum production-ready.Kalau hari ini tidak dirancang:
+
+❌ Log hilang
+
+❌ Alert history tidak bisa direkonstruksi
+
+❌ Database corrupt → tidak tahu harus bagaimana
+
+❌ Tidak bisa audit insiden
+
+Hari ini fokus:
+
+🎯 “Kalau server mati total hari ini, besok sistem bisa bangun lagi?”
+
+🎯 OBJECTIVE DAY 9
+
+Tentukan data retention policy
+
+Implement data pruning strategy
+
+Setup backup automation
+
+Disaster recovery flow
+
+Data integrity validation
+
+🧠 1️⃣ DATA CLASSIFICATION (WAJIB)
+
+Tidak semua data diperlakukan sama.
+
+Data	Retention
+monitoring_logs	30–90 hari
+alerts	1–3 tahun
+alert_history	1–3 tahun
+users	permanen
+routers	permanen
+audit logs	1 tahun
+
+Kalau monitoring_logs disimpan selamanya → DB meledak.
+
+🧹 2️⃣ DATA PRUNING STRATEGY
+
+Buat scheduled job:
+
+DELETE FROM monitoring_logs
+WHERE checked_at < NOW() - INTERVAL '90 days';
+
+Atau lebih aman:
+
+Archive ke tabel history
+
+Atau export ke file storage
+
+🛡 3️⃣ BACKUP STRATEGY (WAJIB MINIMAL)
+
+Gunakan strategi:
+
+🔹 Daily Incremental
+
+Backup perubahan harian
+
+🔹 Weekly Full Backup
+
+Snapshot lengkap DB
+
+Backup Checklist:
+
+Include schema
+
+Include indexes
+
+Include constraints
+
+Test restore 1x
+
+🚨 Backup tanpa test restore = tidak valid.
+
+🔁 4️⃣ DISASTER RECOVERY FLOW
+
+Simulasikan skenario:
+
+Scenario A: DB Corrupt
+
+Langkah:
+
+Stop backend
+
+Restore latest full backup
+
+Apply incremental backup
+
+Run migration validation
+
+Start backend
+
+Scenario B: Server Hilang Total
+
+Minimal harus punya:
+
+.env backup
+
+AES key backup
+
+Requirements.txt
+
+Migration file
+
+Kalau AES key hilang → credential router tidak bisa decrypt.
+
+🔐 5️⃣ AES KEY MANAGEMENT
+
+Hari 5 kamu buat encryption.
+
+Hari 9 wajib:
+
+Backup AES key terpisah
+
+Jangan simpan di repo
+
+Simpan di secure storage (misal password manager)
+
+🧪 DAY 9 ASSESSMENT TEST
+1️⃣ Delete Monitoring Log Lama
+
+Jalankan pruning →
+Expected:
+
+Data lama hilang
+
+Alert tetap utuh
+
+2️⃣ Backup Test
+
+Buat backup →
+Restore ke DB baru →
+App bisa jalan?
+
+Kalau tidak → FAIL.
+
+3️⃣ Corrupt Simulation
+
+Rename DB →
+Restore →
+App harus bisa connect lagi.
+
+4️⃣ AES Key Test
+
+Ganti AES key →
+Pastikan decrypt gagal (ini validasi keamanan).
+
+📂 FILE STRUCTURE DAY 9
+maintenance/
+│
+├── backup.py
+├── restore.py
+├── prune.py
+└── integrity_check.py
+🧠 6️⃣ DATA INTEGRITY CHECK
+
+Tambahkan script:
+
+Check orphan alert
+
+Check interface tanpa router
+
+Check duplicate active alert
+
+Check negative rx/tx value
+
+🚨 COMMON FAILURE DAY 9
+
+Backup tidak pernah dites
+
+AES key tidak dibackup
+
+Tidak ada retention policy
+
+Pruning hapus data penting
+
+Tidak ada script restore otomatis
+
+🎯 OUTPUT WAJIB DAY 9
+
+Retention policy document
+
+Pruning script aktif
+
+Backup script (daily + weekly)
+
+Restore test berhasil
+
+AES key backup strategy
+
+Integrity check script
+
+⏱ Estimasi Waktu
+Task	Waktu
+Retention design	45 menit
+Pruning script	1 jam
+Backup automation	1.5 jam
+Restore testing	1.5 jam
+Integrity checker	1 jam
+
+Total realistis: 5–6 jam
+
+🧠 MINDSET DAY 9
+
+Hari 9 bukan tentang fitur.
+
+Hari 9 tentang:
+
+“Kalau semua rusak, apakah saya punya rencana?”
+
+Kalau tidak punya → belum production-ready.🚀 DAY 10 — DEPLOYMENT ARCHITECTURE & ENVIRONMENT ISOLATION
+
+Hari 9 = Data aman
+Hari 10 = Sistem siap hidup di dunia nyata
+
+Kalau deployment salah:
+
+❌ Dev config masuk production
+
+❌ Debug mode aktif di live server
+
+❌ AES key salah environment
+
+❌ Database production kehapus karena salah migration
+
+Hari ini fokus:
+
+🎯 “Apakah sistem saya aman dipisahkan antara dev, staging, dan production?”
+
+🎯 OBJECTIVE DAY 10
+
+Pisahkan environment (dev / staging / prod)
+
+Dockerize backend
+
+Environment variable isolation
+
+Migration strategy aman
+
+Production config hardening
+
+🧠 1️⃣ ENVIRONMENT SEPARATION (WAJIB)
+
+Minimal punya 3 environment:
+
+Environment	Tujuan
+development	Testing lokal
+staging	Uji sebelum live
+production	Sistem real
+Struktur .env
+.env.dev
+.env.staging
+.env.prod
+
+🚨 Jangan pernah pakai .env yang sama untuk semua.
+
+🔐 2️⃣ CONFIG DIFFERENTIATION
+
+Contoh perbedaan:
+
+Setting	Dev	Prod
+DEBUG	True	False
+LOG_LEVEL	DEBUG	INFO
+DB_NAME	noc_dev	noc_prod
+RATE_LIMIT	0	Active
+CORS	*	Specific domain
+🐳 3️⃣ DOCKERIZATION (WAJIB)
+
+Minimal file:
+
+Dockerfile
+docker-compose.yml
+Dockerfile Basic Structure
+
+Gunakan Python slim
+
+Copy requirements
+
+Install dependencies
+
+Copy app
+
+Expose port
+
+Gunicorn / Uvicorn production mode
+
+🚨 Jangan pakai --reload di production.
+
+🧱 4️⃣ DOCKER COMPOSE STRUCTURE
+
+Minimal service:
+
+backend
+
+database
+
+redis (optional rate limit / cache)
+
+Pisahkan volume untuk DB.
+
+🔄 5️⃣ MIGRATION STRATEGY
+
+Jangan pernah:
+
+drop all tables
+create all tables
+
+Gunakan migration tool (Alembic).
+
+Flow aman:
+
+Backup DB
+
+Jalankan migration
+
+Verifikasi schema
+
+Restart service
+
+🛡 6️⃣ PRODUCTION HARDENING CHECKLIST
+
+DEBUG = False
+
+OpenAPI docs disable (opsional)
+
+CORS strict
+
+Trusted host middleware aktif
+
+HTTPS only
+
+Rate limit aktif
+
+Logging level minimal INFO
+
+🧪 DAY 10 ASSESSMENT TEST
+1️⃣ Dev vs Prod Isolation
+
+Ganti DB dev →
+Prod tidak ikut berubah.
+
+2️⃣ Debug Leak Test
+
+Coba error di prod →
+Stack trace tidak boleh muncul ke client.
+
+3️⃣ Migration Test
+
+Tambah kolom →
+Migration jalan tanpa hapus data.
+
+4️⃣ Container Restart
+
+Restart container →
+System kembali normal (tidak corrupt)
+
+5️⃣ Environment Key Test
+
+Ganti AES key di dev →
+Prod tidak terdampak.
+
+📂 STRUKTUR FINAL DAY 10
+project/
+│
+├── app/
+├── migrations/
+├── docker-compose.yml
+├── Dockerfile
+├── .env.dev
+├── .env.staging
+└── .env.prod
+🚨 COMMON FAILURE DAY 10
+
+Hardcode DB URL
+
+Dev DB connect ke prod
+
+Tidak ada migration
+
+Container run as root
+
+Tidak set restart policy
+
+🎯 OUTPUT WAJIB DAY 10
+
+Dockerfile jalan
+
+docker-compose up sukses
+
+Environment terpisah
+
+Migration aktif
+
+Production config aman
+
+⏱ Estimasi Waktu
+Task	Waktu
+Setup Dockerfile	1.5 jam
+Compose config	1 jam
+Env separation	1 jam
+Migration setup	1.5 jam
+Testing isolation	1 jam
+
+Total realistis: 6 jam
+
+🧠 MINDSET DAY 10
+
+Hari 10 bukan tentang “bisa jalan di laptop”.
+
+Hari 10 tentang:
+
+“Apakah sistem ini bisa hidup di server 24/7 tanpa drama?”
+
+Kalau belum → belum production-grade.🚀 DAY 11 — INTEGRATION TESTING & CHAOS SIMULATION
+
+(Reliability Validation Mode)
+
+Hari 10 = Sistem bisa dideploy
+Hari 11 = Sistem diuji sampai “dipaksa rusak”
+
+Kalau kamu tidak uji skenario gagal:
+
+❌ Sistem terlihat stabil… sampai hari H
+
+❌ Alert hilang saat DB lambat
+
+❌ Worker mati diam-diam
+
+❌ Token error di production
+
+Hari ini fokus:
+
+🎯 “Apa yang terjadi kalau semuanya tidak berjalan sesuai rencana?”
+
+🎯 OBJECTIVE DAY 11
+
+Integration testing (bukan unit test)
+
+Simulasi failure
+
+Chaos testing ringan
+
+Validasi state consistency
+
+Recovery behavior check
+
+🧠 1️⃣ INTEGRATION TEST SCOPE
+
+Yang diuji:
+
+Layer	Diuji?
+API	✅
+Auth	✅
+DB	✅
+Worker	✅
+Alert Engine	✅
+Logging	✅
+
+Bukan cuma function test.
+Tapi end-to-end flow.
+
+🔁 TEST FLOW WAJIB
+Scenario 1 — Normal Flow
+
+Router UP
+
+Interface DOWN 30 detik
+
+Alert dibuat
+
+Operator ACK
+
+Interface UP
+
+Alert RESOLVED
+
+Expected:
+
+Semua state valid
+
+History lengkap
+
+Tidak ada duplicate
+
+Scenario 2 — Router Timeout
+
+Simulasikan:
+
+Router tidak merespon
+
+Expected:
+
+Worker log WARNING
+
+Tidak crash
+
+Tidak infinite retry
+
+Scenario 3 — DB Slow
+
+Tambahkan delay di DB.
+
+Expected:
+
+Adaptive concurrency turun
+
+Tidak deadlock
+
+Health endpoint degrade
+
+Scenario 4 — API Flood
+
+Spam 200 request.
+
+Expected:
+
+429 aktif
+
+Tidak memory leak
+
+Worker tetap stabil
+
+Scenario 5 — Token Expired
+
+Gunakan token lama.
+
+Expected:
+
+401
+
+Tidak stack trace
+
+💥 2️⃣ CHAOS SIMULATION (WAJIB MINIMAL 3)
+🔥 Kill Worker
+
+Matikan worker process.
+
+Expected:
+
+Scheduler detect failure
+
+Restart clean
+
+Tidak duplicate polling
+
+🔥 Kill Database
+
+Stop DB container.
+
+Expected:
+
+API return 503
+
+Worker pause
+
+Tidak crash
+
+🔥 Force Crash During Alert Update
+
+Paksa error di tengah transaction.
+
+Expected:
+
+Tidak ada partial alert
+
+Data tetap konsisten
+
+🧪 3️⃣ DATA CONSISTENCY CHECK
+
+Setelah chaos test:
+
+Tidak ada orphan alert
+
+Tidak ada duplicate ACTIVE alert
+
+Tidak ada interface tanpa router
+
+Tidak ada alert tanpa history
+
+Kalau ada → FAIL.
+
+📊 4️⃣ LOAD TEST RINGAN
+
+Minimal:
+
+10 menit test
+
+50–100 request / menit
+
+Polling tetap berjalan
+
+Monitor:
+
+RAM usage
+
+CPU
+
+Connection pool
+
+Log error rate
+
+🧠 5️⃣ ASSERTION MATRIX
+
+Buat checklist:
+
+Area	Lulus?
+Alert duplication	❌ / ✅
+State invalid transition	❌ / ✅
+Memory leak	❌ / ✅
+Rate limit work	❌ / ✅
+Worker auto recovery	❌ / ✅
+🚨 COMMON FAILURE DAY 11
+
+Tidak pakai transaction saat update alert
+
+Worker retry tanpa backoff
+
+Pool exhaustion saat load
+
+Token error bocor detail
+
+Health endpoint tidak reflect real state
+
+📂 FILE STRUCTURE DAY 11
+tests/
+│
+├── integration/
+│   ├── test_alert_flow.py
+│   ├── test_rate_limit.py
+│   ├── test_worker_failure.py
+│   └── test_recovery.py
+🎯 OUTPUT WAJIB DAY 11
+
+Minimal 5 integration scenario
+
+3 chaos scenario
+
+Load test 10 menit
+
+Assertion checklist lengkap
+
+Tidak ada crash fatal
+
+⏱ Estimasi Waktu
+Task	Waktu
+Setup integration test	1.5 jam
+Buat 5 scenario	2 jam
+Chaos simulation	1.5 jam
+Load testing	1 jam
+Analisa log	1 jam
+
+Total realistis: 6–7 jam
+
+🧠 MINDSET DAY 11
+
+Hari 11 bukan tentang “semoga aman”.
+
+Hari 11 tentang:
+
+“Saya sudah mencoba menghancurkan sistem ini, dan dia tetap hidup.”
+
+Kalau belum diuji rusak → belum siap produksi.🚀 DAY 12 — PERFORMANCE TUNING & QUERY OPTIMIZATION
+
+(Speed Without Breaking Stability)
+
+Hari 11 = Sistem tahan rusak
+Hari 12 = Sistem cepat dan efisien
+
+Kalau hari ini dilewati:
+
+❌ Query lambat saat data > 1 juta row
+
+❌ CPU spike saat polling
+
+❌ Alert query jadi bottleneck
+
+❌ Monitoring history berat
+
+Hari ini fokus:
+
+🎯 “Apakah sistem tetap cepat saat data bertambah besar?”
+
+🎯 OBJECTIVE DAY 12
+
+Query profiling
+
+Index validation
+
+N+1 query detection
+
+DB tuning
+
+Memory & CPU profiling
+
+Endpoint performance validation
+
+🧠 1️⃣ QUERY PROFILING (WAJIB)
+
+Identifikasi query terberat:
+
+Contoh kandidat berat:
+
+GET /api/alerts
+
+GET /api/monitoring/history
+
+Worker insert monitoring_logs
+
+Gunakan:
+
+EXPLAIN ANALYZE
+
+Kalau ada:
+
+Sequential scan pada tabel besar → masalah
+
+Execution time > 100ms → evaluasi
+
+🧱 2️⃣ INDEX VALIDATION
+
+Minimal index harus ada:
+
+Table	Index
+alerts	(status, router_id)
+alerts	(interface_id)
+monitoring_logs	(interface_id, checked_at DESC)
+interfaces	(router_id, name UNIQUE)
+🚨 Tanpa index:
+
+Monitoring history bisa jadi 2–3 detik.
+
+🧠 3️⃣ N+1 QUERY CHECK
+
+Contoh salah:
+
+for alert in alerts:
+    print(alert.interface.name)
+
+Itu bisa jadi 100 query tambahan.
+
+Solusi:
+
+Eager loading
+
+JOIN query
+
+📊 4️⃣ MONITORING HISTORY OPTIMIZATION
+
+Untuk endpoint history:
+
+WAJIB:
+
+Pagination
+
+Limit max 500
+
+Order by checked_at DESC
+
+Tambahkan optional:
+
+Range filter (start_date, end_date)
+
+⚡ 5️⃣ WORKER INSERT OPTIMIZATION
+
+Jika polling 10 interface sekaligus:
+
+Jangan insert satu per satu.
+
+Gunakan:
+
+Bulk insert
+
+Single transaction
+
+🧠 6️⃣ MEMORY PROFILING
+
+Perhatikan:
+
+Worker object leak?
+
+Connection tidak ditutup?
+
+Logger menumpuk?
+
+Test:
+
+Jalankan 30 menit
+
+Lihat RAM usage
+
+Kalau naik terus → memory leak.
+
+🛠 7️⃣ CPU PROFILING
+
+Check:
+
+JSON serialization berat?
+
+Loop terlalu besar?
+
+Alert engine terlalu sering trigger?
+
+🧪 DAY 12 ASSESSMENT TEST
+1️⃣ Large Data Simulation
+
+Tambahkan 500k monitoring_logs.
+
+Test:
+
+History endpoint < 300ms
+
+Alerts endpoint < 200ms
+
+2️⃣ Alert Query Speed
+
+Filter by status + severity
+Expected:
+
+Gunakan index
+
+Tidak sequential scan
+
+3️⃣ Worker Stress
+
+Polling interval 5 detik
+10 menit run
+Expected:
+
+CPU stabil
+
+RAM stabil
+
+No spike error
+
+4️⃣ Pagination Abuse
+
+Request limit=10000
+Expected:
+
+422 validation error
+
+5️⃣ Slow Query Log
+
+Query > 500ms harus tercatat WARNING.
+
+📂 FILE YANG MUNGKIN DIPERBARUI
+database.py
+alerts.py
+monitoring.py
+worker/poller.py
+
+Tambahkan:
+
+Optimized query
+
+Bulk insert
+
+Index migration
+
+🚨 COMMON FAILURE DAY 12
+
+Tidak cek EXPLAIN ANALYZE
+
+Tidak pakai index composite
+
+Pagination tidak dipaksa
+
+Worker insert satu per satu
+
+JSON terlalu besar di response
+
+🎯 OUTPUT WAJIB DAY 12
+
+Semua endpoint < 300ms (normal load)
+
+Index validated
+
+No N+1 issue
+
+Bulk insert aktif
+
+Memory stabil 30 menit
+
+Slow query log aktif
+
+⏱ Estimasi Waktu
+Task	Waktu
+Profiling query	1.5 jam
+Index tuning	1.5 jam
+N+1 fix	1 jam
+Worker optimization	1 jam
+Stress test	1.5 jam
+
+Total realistis: 6–7 jam
+
+🧠 MINDSET DAY 12
+
+Hari 12 bukan tentang cepat sekarang.
+
+Hari 12 tentang:
+
+“Apakah sistem tetap cepat saat 6 bulan ke depan?”
+
+Kalau performa hanya bagus saat data sedikit → belum lulus.🚀 DAY 13 — FINAL SECURITY HARDENING & AUDIT SIMULATION
+
+(Penetration Mindset Mode ON)
+
+Hari 12 = Sistem cepat
+Hari 13 = Sistem sulit ditembus
+
+Kalau hari ini dilewati:
+
+❌ Privilege escalation mungkin terjadi
+
+❌ Token bisa dipalsukan
+
+❌ SQL injection lolos
+
+❌ Credential exposure tidak terdeteksi
+
+❌ Audit log tidak cukup untuk forensik
+
+Hari ini fokus:
+
+🎯 “Kalau saya jadi attacker, bisa tembus dari mana?”
+
+🎯 OBJECTIVE DAY 13
+
+Permission abuse testing
+
+Token tampering test
+
+Injection testing
+
+Sensitive data exposure audit
+
+Audit log completeness check
+
+Security configuration review
+
+🧠 1️⃣ ROLE ABUSE TEST
+
+Coba semua kombinasi:
+
+Role	Aksi Terlarang	Expected
+Viewer	ACK alert	403
+Viewer	Resolve alert	403
+Operator	Resolve alert	403
+Operator	Edit router	403
+
+🚨 Jangan hanya test happy path.
+
+🔐 2️⃣ JWT TAMPERING TEST
+
+Coba:
+
+Ubah role di payload jadi ADMIN
+
+Ubah exp ke masa depan
+
+Hapus signature
+
+Expected:
+
+401 Unauthorized
+
+Tidak ada stack trace
+
+🧱 3️⃣ SQL INJECTION TEST
+
+Test input seperti:
+
+' OR 1=1 --
+
+Di:
+
+login
+
+filter query
+
+router search
+
+Expected:
+
+Tidak ada bypass
+
+Parameterized query aktif
+
+🔎 4️⃣ SENSITIVE DATA EXPOSURE CHECK
+
+Cek semua endpoint response:
+
+Tidak boleh ada:
+
+encrypted_password
+
+encryption_iv
+
+JWT secret
+
+AES key
+
+internal stack trace
+
+DB URL
+
+🧠 5️⃣ CORS & HEADER HARDENING
+
+Production wajib:
+
+Strict CORS domain
+
+X-Content-Type-Options
+
+X-Frame-Options
+
+HSTS (jika HTTPS)
+
+Disable server banner
+
+🛡 6️⃣ RATE LIMIT BYPASS TEST
+
+Coba:
+
+Ganti IP
+
+Gunakan banyak akun
+
+Spam endpoint berbeda
+
+Pastikan:
+
+Global limiter tetap aktif
+
+Brute force tetap terkunci
+
+📜 7️⃣ AUDIT LOG VALIDATION
+
+Setiap aksi penting harus tercatat:
+
+Action	Logged?
+Login success	✅
+Login failed	✅
+ACK alert	✅
+Resolve alert	✅
+Router edit	✅
+Permission denied	✅
+
+Audit log minimal berisi:
+
+user_id
+
+action
+
+timestamp
+
+ip_address
+
+💥 8️⃣ CHAOS SECURITY SIMULATION
+Scenario 1 — Token Replay
+
+Gunakan token lama setelah logout.
+Expected:
+
+Invalid
+
+Scenario 2 — Expired Credential
+
+Hapus router credential lalu polling.
+Expected:
+
+Worker error logged
+
+Tidak crash
+
+Scenario 3 — Privilege Escalation Attempt
+
+User operator coba akses admin endpoint via Postman.
+Expected:
+
+403
+
+🧪 DAY 13 ASSESSMENT CHECKLIST
+Area	Lulus?
+Role enforcement	❌ / ✅
+JWT integrity	❌ / ✅
+SQL injection safe	❌ / ✅
+Sensitive leak	❌ / ✅
+Audit log complete	❌ / ✅
+Header hardened	❌ / ✅
+
+Kalau 1 saja ❌ → belum production-ready.
+
+🚨 COMMON FAILURE DAY 13
+
+JWT secret terlalu pendek
+
+Tidak rotate secret
+
+Refresh token tidak divalidasi
+
+Role hanya dicek di frontend
+
+Audit log tidak menyimpan IP
+
+📂 FILE YANG PERLU DIREVIEW
+auth/jwt_handler.py
+auth/permissions.py
+api/*.py
+security/rate_limiter.py
+core/logging_config.py
+🎯 OUTPUT WAJIB DAY 13
+
+Permission abuse test lulus
+
+JWT tampering test gagal (good)
+
+Injection test aman
+
+Sensitive field tidak leak
+
+Audit log lengkap
+
+Security headers aktif
+
+⏱ Estimasi Waktu
+Task	Waktu
+Role abuse test	1 jam
+JWT tamper test	1 jam
+Injection test	1 jam
+Header hardening	1 jam
+Audit log review	1 jam
+Security checklist review	1 jam
+
+Total realistis: 6 jam
+
+🧠 MINDSET DAY 13
+
+Hari 13 bukan tentang menambah fitur.
+
+Hari 13 tentang:
+
+“Apakah sistem saya cukup kuat untuk tidak memalukan saat diaudit?”
+
+Kalau belum diuji dari sudut pandang attacker → belum siap.🚀 DAY 14 — FINAL REVIEW & PRODUCTION READINESS CERTIFICATION
+
+(Verdict Day)
+
+Hari 1–13 = Build, Harden, Test
+Hari 14 = Audit Total & Keputusan
+
+Hari ini bukan coding.
+
+Hari ini menjawab satu pertanyaan:
+
+🎯 “Apakah sistem ini layak disebut production-grade NOC backend?”
+
+🧠 FORMAT AUDIT FINAL
+
+Kita evaluasi 7 Domain:
+
+Architecture Stability
+
+Data Integrity
+
+Alert Reliability
+
+Security Hardening
+
+Performance
+
+Observability
+
+Disaster Recovery
+
+Setiap domain dinilai:
+
+✅ PASS
+
+⚠️ CONDITIONAL
+
+❌ FAIL
+
+1️⃣ ARCHITECTURE STABILITY
+
+Checklist:
+
+Async worker stabil
+
+Concurrency controlled
+
+Circuit breaker aktif
+
+Adaptive backpressure jalan
+
+Tidak ada crash saat chaos test
+
+Verdict:
+
+Kalau 30 menit load test stabil → ✅
+Kalau ada restart mendadak → ❌
+
+2️⃣ DATA INTEGRITY
+
+Checklist:
+
+Tidak ada orphan data
+
+Tidak ada duplicate active alert
+
+Transaction digunakan saat update critical
+
+Foreign key constraint aktif
+
+Migration aman
+
+Kalau 1 saja gagal → ⚠️ atau ❌
+
+3️⃣ ALERT RELIABILITY
+
+Checklist:
+
+Tidak spam saat flapping
+
+Tidak miss alert
+
+State machine tervalidasi
+
+History lengkap
+
+Debounce bekerja
+
+Kalau ada alert loncat status → ❌
+
+4️⃣ SECURITY HARDENING
+
+Checklist:
+
+JWT aman
+
+Role enforcement backend-side
+
+SQL injection safe
+
+AES key aman
+
+Rate limit aktif
+
+No sensitive leak
+
+Kalau credential pernah tampil di response → ❌ langsung.
+
+5️⃣ PERFORMANCE BENCHMARK
+
+Target minimal:
+
+Endpoint	Target
+GET Alerts	< 200ms
+Monitoring History	< 300ms
+Login	< 150ms
+Polling cycle	Stabil
+
+Jika sequential scan masih ada → ⚠️
+
+6️⃣ OBSERVABILITY
+
+Checklist:
+
+Structured log aktif
+
+Slow query log aktif
+
+Health endpoint reflect real state
+
+Metrics tersedia
+
+Tidak ada blind spot
+
+Kalau error tidak tercatat → ❌
+
+7️⃣ DISASTER RECOVERY
+
+Checklist:
+
+Backup tested
+
+Restore tested
+
+AES key backup aman
+
+Retention policy jalan
+
+Integrity checker ada
+
+Backup tanpa restore test = ❌
+
+🧪 FINAL STRESS TEST (WAJIB)
+
+Lakukan 1 jam simulation:
+
+Worker aktif
+
+API dipakai
+
+1 router timeout
+
+1 alert terjadi
+
+1 DB slow
+
+1 login brute attempt
+
+Jika sistem tetap:
+
+Stabil
+
+Tidak crash
+
+Tidak memory leak
+
+Tidak corrupt data
+
+→ Siap produksi.
+
+🏁 PRODUCTION READINESS MATRIX
+Domain	Status
+Architecture	?
+Data Integrity	?
+Alert Engine	?
+Security	?
+Performance	?
+Observability	?
+Disaster Recovery	?
+🎯 FINAL VERDICT
+🟢 PRODUCTION READY
+
+Semua domain PASS.
+
+🟡 LIMITED PRODUCTION
+
+Ada ⚠️ tapi tidak fatal.
+
+🔴 NOT READY
+
+Ada 1 FAIL di:
+
+Security
+
+Data Integrity
+
+Alert Engine

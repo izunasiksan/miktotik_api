@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mikrotik-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mikrotik-api
+  template:
+    metadata:
+      labels:
+        app: mikrotik-api
+    spec:
+      containers:
+      - name: api
+        image: mikrotik-api:latest
+        command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: mikrotik-api-config
+        - secretRef:
+            name: mikrotik-api-secrets
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10

@@ -1,0 +1,304 @@
+NOMOR 9 BOARD DAILY SUMMARY
+Router Daily Monitoring Aggregation
+
+Tabel board_daily_summary menyimpan data ringkasan
+monitoring harian dari router Mikrotik.
+
+Data pada tabel ini merupakan hasil agregasi
+dari berbagai data monitoring yang dicatat
+sepanjang hari seperti traffic jaringan,
+resource router, dan jumlah client yang aktif.
+
+Tujuan tabel ini adalah untuk menyediakan
+ringkasan performa router per hari sehingga
+analisis historis dapat dilakukan dengan
+lebih cepat tanpa harus membaca seluruh
+data monitoring detail.
+
+Setiap router hanya memiliki satu data
+ringkasan untuk setiap tanggal.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE board_daily_summary (
+    summary_id           SERIAL PRIMARY KEY,
+    board_id             UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    
+    avg_download         NUMERIC(15,2),
+    max_download         NUMERIC(15,2),
+    total_download_bytes BIGINT DEFAULT 0,
+    
+    avg_upload           NUMERIC(15,2),
+    max_upload           NUMERIC(15,2),
+    total_upload_bytes   BIGINT DEFAULT 0,
+    
+    avg_cpu_load         INT DEFAULT 0,
+    max_cpu_load         INT DEFAULT 0,
+    min_free_memory      BIGINT DEFAULT 0,
+
+    avg_hotspot_users    INT DEFAULT 0,
+    max_hotspot_users    INT DEFAULT 0,
+    
+    avg_pppoe_users      INT DEFAULT 0,
+    max_pppoe_users      INT DEFAULT 0,
+    
+    accuracy_pct         NUMERIC(5,2) DEFAULT 100.00,
+    log_date             DATE NOT NULL,
+    created_at           TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_daily_board_sum UNIQUE(board_id, log_date)
+);
+
+CREATE INDEX idx_board_daily_summary_lookup
+ON board_daily_summary(board_id, log_date DESC);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+summary_id
+Tipe: SERIAL
+
+Identifier unik untuk setiap data ringkasan
+monitoring harian.
+
+Nilai dihasilkan otomatis oleh database
+setiap kali data agregasi harian dibuat.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan data
+ringkasan harian dengan router pada
+tabel mikrotik_boards.
+
+Relasi:
+
+board_daily_summary.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari tabel
+mikrotik_boards maka seluruh data ringkasan
+harian yang terkait dengan router tersebut
+akan ikut terhapus.
+
+------------------------------------------------------------
+
+avg_download
+Tipe: NUMERIC(15,2)
+
+Menyimpan rata-rata kecepatan download
+traffic jaringan pada router selama
+satu hari.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+max_download
+Tipe: NUMERIC(15,2)
+
+Menyimpan nilai kecepatan download
+tertinggi yang tercatat pada router
+selama satu hari.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+total_download_bytes
+Tipe: BIGINT
+
+Menyimpan total jumlah data download
+yang melewati router selama satu hari.
+
+Nilai disimpan dalam satuan bytes.
+
+------------------------------------------------------------
+
+avg_upload
+Tipe: NUMERIC(15,2)
+
+Menyimpan rata-rata kecepatan upload
+traffic jaringan pada router selama
+satu hari.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+max_upload
+Tipe: NUMERIC(15,2)
+
+Menyimpan nilai kecepatan upload
+tertinggi yang tercatat pada router
+selama satu hari.
+
+Nilai disimpan dalam satuan Mbps.
+
+------------------------------------------------------------
+
+total_upload_bytes
+Tipe: BIGINT
+
+Menyimpan total jumlah data upload
+yang melewati router selama satu hari.
+
+Nilai disimpan dalam satuan bytes.
+
+------------------------------------------------------------
+
+avg_cpu_load
+Tipe: INT
+
+Menyimpan rata-rata penggunaan CPU
+router selama satu hari.
+
+Nilai dinyatakan dalam persentase
+dari 0 sampai 100.
+
+------------------------------------------------------------
+
+max_cpu_load
+Tipe: INT
+
+Menyimpan nilai penggunaan CPU
+tertinggi yang tercatat pada router
+selama satu hari.
+
+Nilai dinyatakan dalam persentase.
+
+------------------------------------------------------------
+
+min_free_memory
+Tipe: BIGINT
+
+Menyimpan jumlah memori bebas
+terendah yang tercatat pada router
+selama satu hari.
+
+Nilai disimpan dalam satuan bytes.
+
+------------------------------------------------------------
+
+avg_hotspot_users
+Tipe: INT
+
+Menyimpan rata-rata jumlah user
+hotspot yang aktif pada router
+selama satu hari.
+
+------------------------------------------------------------
+
+max_hotspot_users
+Tipe: INT
+
+Menyimpan jumlah user hotspot
+terbanyak yang tercatat aktif
+pada router selama satu hari.
+
+------------------------------------------------------------
+
+avg_pppoe_users
+Tipe: INT
+
+Menyimpan rata-rata jumlah user
+PPPoE yang aktif pada router
+selama satu hari.
+
+------------------------------------------------------------
+
+max_pppoe_users
+Tipe: INT
+
+Menyimpan jumlah user PPPoE
+terbanyak yang tercatat aktif
+pada router selama satu hari.
+
+------------------------------------------------------------
+
+accuracy_pct
+Tipe: NUMERIC(5,2)
+
+Menyimpan persentase tingkat
+akurasi data agregasi harian.
+
+Nilai default:
+100.00
+
+Kolom ini digunakan sebagai
+metadata untuk menunjukkan
+tingkat keakuratan data yang
+dihasilkan dari proses agregasi.
+
+------------------------------------------------------------
+
+log_date
+Tipe: DATE
+
+Menyimpan tanggal data monitoring
+yang dirangkum dalam tabel ini.
+
+Setiap router hanya memiliki
+satu data ringkasan untuk setiap
+tanggal.
+
+Contoh nilai:
+2026-03-06
+
+------------------------------------------------------------
+
+created_at
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika data
+ringkasan harian dibuat oleh
+sistem.
+
+Nilai default:
+CURRENT_TIMESTAMP
+
+============================================================
+UNIQUE CONSTRAINT
+============================================================
+
+unique_daily_board_sum
+
+Constraint ini memastikan bahwa
+setiap router hanya memiliki satu
+data ringkasan untuk setiap tanggal.
+
+Kombinasi unik:
+
+board_id
+log_date
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_board_daily_summary_lookup
+
+Index pada kolom:
+
+board_id
+log_date DESC
+
+Index ini digunakan untuk
+mempercepat query yang mengambil
+data ringkasan monitoring
+berdasarkan router dan tanggal.
+
+Contoh penggunaan query:
+
+- melihat performa router per hari
+- membuat grafik monitoring harian
+- analisis penggunaan jaringan
+berdasarkan tanggal

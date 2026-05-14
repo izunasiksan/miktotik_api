@@ -1,0 +1,71 @@
+# RabbitMQ Cluster (High Availability Queue)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq-cluster
+spec:
+  serviceName: "rabbitmq-headless"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.11-management-alpine
+        env:
+          - name: RABBITMQ_ERLANG_COOKIE
+            valueFrom:
+              secretKeyRef:
+                name: rabbitmq-secret
+                key: ERLANG_COOKIE
+        ports:
+        - containerPort: 5672
+        - containerPort: 15672
+        livenessProbe:
+          exec:
+            command: ["rabbitmq-diagnostics", "status"]
+          initialDelaySeconds: 60
+          periodSeconds: 60
+          timeoutSeconds: 15
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/rabbitmq
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-headless
+spec:
+  clusterIP: None
+  ports:
+  - port: 5672
+    targetPort: 5672
+    name: amqp
+  selector:
+    app: rabbitmq
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-management
+spec:
+  type: ClusterIP
+  ports:
+  - port: 15672
+    targetPort: 15672
+    name: http
+  selector:
+    app: rabbitmq

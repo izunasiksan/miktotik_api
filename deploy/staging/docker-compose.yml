@@ -1,0 +1,36 @@
+# STAGING ENVIRONMENT CONFIGURATION (Clone of Prod with Debugging)
+version: '3.8'
+
+services:
+  db:
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASS}
+    ports: [] 
+
+  api:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - LOG_LEVEL=INFO
+      - RELOAD=false
+      - BACKEND_CORS_ORIGINS=["https://staging-dashboard.company.com"]
+    deploy:
+      replicas: 1 # Save resources
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  worker:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    restart: always
+    deploy:
+      replicas: 1
+
+  redis:
+    restart: always

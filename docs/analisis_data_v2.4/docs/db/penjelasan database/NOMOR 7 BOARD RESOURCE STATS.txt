@@ -1,0 +1,219 @@
+NOMOR 7 BOARD RESOURCE STATS
+Router Resource Monitoring Statistics
+
+Tabel board_resource_stats menyimpan data statistik
+kondisi resource sistem pada router Mikrotik.
+
+Data ini digunakan untuk memonitor kesehatan perangkat
+seperti penggunaan CPU, memori yang tersedia,
+ruang penyimpanan bebas, serta lama waktu router
+berjalan sejak terakhir dinyalakan atau reboot.
+
+Tabel ini menggunakan mekanisme partition berdasarkan
+waktu untuk meningkatkan performa penyimpanan data
+monitoring resource yang terus bertambah.
+
+============================================================
+STRUKTUR TABEL
+============================================================
+
+CREATE TABLE board_resource_stats (
+    resource_id   BIGINT NOT NULL DEFAULT nextval('board_resource_stats_resource_id_seq'),
+    board_id      UUID REFERENCES mikrotik_boards(board_id) ON DELETE CASCADE,
+    cpu_load      INT,
+    free_memory   BIGINT,
+    free_hdd      BIGINT,
+    uptime        INTERVAL,
+    accuracy_pct  NUMERIC(5,2) DEFAULT 100.00,
+    log_time      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (resource_id, log_time)
+) PARTITION BY RANGE (log_time);
+
+CREATE INDEX idx_resource_stats_time
+ON board_resource_stats(board_id, log_time DESC);
+
+============================================================
+PENJELASAN KOLOM
+============================================================
+
+resource_id
+Tipe: BIGINT
+
+Identifier unik untuk setiap data statistik
+resource router.
+
+Nilai dihasilkan otomatis menggunakan sequence:
+
+nextval('board_resource_stats_resource_id_seq')
+
+Kolom ini tidak menggunakan BIGSERIAL karena tabel
+menggunakan mekanisme partition sehingga penggunaan
+sequence secara eksplisit lebih disarankan.
+
+------------------------------------------------------------
+
+board_id
+Tipe: UUID
+
+Foreign key yang menghubungkan data statistik
+resource dengan router pada tabel mikrotik_boards.
+
+Relasi:
+
+board_resource_stats.board_id
+→ mikrotik_boards.board_id
+
+Constraint:
+
+ON DELETE CASCADE
+
+Artinya jika router dihapus dari tabel
+mikrotik_boards maka seluruh data statistik
+resource yang terkait dengan router tersebut
+akan ikut dihapus.
+
+------------------------------------------------------------
+
+cpu_load
+Tipe: INT
+
+Menyimpan tingkat penggunaan CPU pada router
+dalam bentuk persentase.
+
+Rentang nilai yang digunakan biasanya
+antara 0 sampai 100.
+
+Contoh nilai:
+15
+42
+87
+
+------------------------------------------------------------
+
+free_memory
+Tipe: BIGINT
+
+Menyimpan jumlah memori bebas yang tersedia
+pada router saat data monitoring dicatat.
+
+Satuan nilai menggunakan bytes.
+
+Contoh nilai:
+536870912
+1073741824
+
+------------------------------------------------------------
+
+free_hdd
+Tipe: BIGINT
+
+Menyimpan jumlah ruang penyimpanan bebas
+pada router saat data monitoring dicatat.
+
+Satuan nilai menggunakan bytes.
+
+Contoh nilai:
+2147483648
+5368709120
+
+------------------------------------------------------------
+
+uptime
+Tipe: INTERVAL
+
+Menyimpan durasi waktu router telah berjalan
+sejak terakhir dinyalakan atau reboot.
+
+Nilai disimpan dalam format interval waktu.
+
+Contoh nilai:
+3 days 04:21:10
+12:45:33
+
+------------------------------------------------------------
+
+accuracy_pct
+Tipe: NUMERIC(5,2)
+
+Menyimpan persentase akurasi data monitoring
+yang dicatat oleh sistem.
+
+Nilai default:
+100.00
+
+Kolom ini digunakan sebagai metadata untuk
+menunjukkan tingkat keakuratan data yang
+dikumpulkan pada saat monitoring.
+
+Contoh nilai:
+100.00
+96.50
+88.75
+
+------------------------------------------------------------
+
+log_time
+Tipe: TIMESTAMP WITH TIME ZONE
+
+Menyimpan waktu ketika data statistik
+resource router dicatat oleh sistem.
+
+Nilai default:
+CURRENT_TIMESTAMP
+
+Kolom ini juga digunakan sebagai dasar
+pembagian partition tabel.
+
+Contoh nilai:
+2026-03-06 22:50:00+07
+
+============================================================
+PRIMARY KEY
+============================================================
+
+PRIMARY KEY (resource_id, log_time)
+
+Primary key menggunakan kombinasi dua kolom:
+
+resource_id
+log_time
+
+Kombinasi ini diperlukan karena tabel
+menggunakan partition berdasarkan waktu.
+
+============================================================
+PARTITIONING
+============================================================
+
+Tabel ini menggunakan metode:
+
+PARTITION BY RANGE (log_time)
+
+Artinya data akan dibagi ke dalam beberapa
+partisi berdasarkan rentang waktu pada
+kolom log_time.
+
+Partition digunakan untuk meningkatkan
+performa penyimpanan dan query pada data
+monitoring resource yang terus bertambah.
+
+============================================================
+INDEX YANG DIGUNAKAN
+============================================================
+
+idx_resource_stats_time
+
+Index pada kolom:
+
+board_id
+log_time DESC
+
+Index ini digunakan untuk mempercepat query
+monitoring yang mengambil data resource
+berdasarkan router dan waktu terbaru.
+
+Contoh penggunaan query:
+
+- melihat histori penggunaan CPU router
+- memonitor kondisi memori router
+- analisis kesehatan perangkat berdasarkan waktu
