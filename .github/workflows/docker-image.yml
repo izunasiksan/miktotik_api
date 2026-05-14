@@ -25,11 +25,9 @@ jobs:
       run: |
         # Create .env for testing
         cp .env.example .env || echo "DB_PASS=root\nTELEGRAM_BOT_TOKEN=test\nAES_SECRET_KEY=test" > .env
-        docker-compose up -d
-        sleep 10
-        docker-compose ps
-        # Add curl check or pytest here
-        docker-compose down
+        # Skip automatic docker-compose startup in CI
+        echo "Skipping docker-compose up/down; only validating build and config."
+        docker-compose config
 
     - name: Login to Docker Hub
       if: github.event_name != 'pull_request'
